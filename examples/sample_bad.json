@@ -1,0 +1,6 @@
+{
+  # This is the firstname
+  "firstname": "John",
+  // This is the lastname
+  "lastname":"Smith"
+}
