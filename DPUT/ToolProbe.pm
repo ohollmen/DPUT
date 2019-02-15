@@ -1,4 +1,7 @@
 package DPUT::ToolProbe;
+use strict;
+use warnings;
+
 # # Detect command-line tool versions
 # # Tool definitions
 # Tool definition consists of following members:
