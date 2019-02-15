@@ -1,6 +1,8 @@
 
 # DataRun - Process datasets in series or in parallell (in a child process)
 package DPUT::DataRun;
+use strict;
+use warnings;
 
 our $VERSION = '0.0.1';
 # ## Construct a DataRun Data processor object.
@@ -50,14 +52,15 @@ sub new {
 # It merely exists to **compare** the savings caused by running data processing in parallel in
 # child processes. To do this rather easy comparison, do:
 #
-#    $drun = DPUT::DataRun->new($dropts);
+#    $drun = DPUT::DataRun->new(\&my_data_proc_sub, $dropts);
 #    # Time this
 #    my $res = $drun->run_series($dataset);
 #    # and time this
 #    my $res = $drun->run_parallel($dataset)->runwait();
+#    # ... Compare the 2 and see if running in parallell is worth it
 #
 # There is always a small overhead of launching child processes, so for a small number of items **and** short processing
-# time there may be no time benefit spawning the child processes.
+# time there may be no time benefit spawning the child processes in parallel.
 sub run_series {
   my ($drun, $tars) = @_;
   my $cb = $drun->{'cb'};
