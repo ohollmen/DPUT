@@ -6,6 +6,7 @@ use lib ("..");
 use Data::Dumper;
 #use JSON;
 use DPUT;
+use Digest::MD5;
 my $samplepath = "";
 
 ############ JSON ##########
@@ -16,7 +17,7 @@ print(Dumper($p1));
 note("Load bad JSON (With caught exception)");
 my $p2;
 eval {
-  my $p2 = jsonfile_load("./examples/sample_bad.json");
+  $p2 = jsonfile_load("./examples/sample_bad.json");
 };
 if ($@) { print("Got an exception '$@' on bad JSON (which is okay)\n");}
 
@@ -49,5 +50,37 @@ my $tmpfn = "/tmp/$time.$$.json";
 my $ok = file_write("$tmpfn", JSON::to_json($p3));
 if ($ok) { print("Wrote Ugly JSON nicely to '$tmpfn'\n");}
 my $tmpfn2 = "/tmp/$time.$$.pretty.json";
-my $ok = file_write("$tmpfn2", JSON::to_json($p3, {pretty => 1}));
+ $ok = file_write("$tmpfn2", JSON::to_json($p3, {pretty => 1}));
 if ($ok) { print("Wrote Pretty JSON nicely to '$tmpfn2'\n");}
+
+my $md5sum = file_checksum($tmpfn2);
+if (!$md5sum) { die("Cound not generate MD5 for $tmpfn2\n"); }
+print("$md5sum $tmpfn2\n");
+
+# Self Test for @EXPORT
+my $text = file_read("DPUT.pm");
+print("Content: ".length($text)." B\n");
+my @allsyms = ($text =~ /^sub\s+(\w+)/gm);
+my @exported = @DPUT::EXPORT;
+#print(Dumper(\@allsyms));
+#print(Dumper(\@DPUT::EXPORT));
+my %exported = map({ ($_, 1); } @exported); # Index exported
+#print(Dumper(\%exported));
+#if (exists($exported{'jsonfile_load'})) { print("jsonfile_load - It's there\n");}
+map({ if (!$exported{$_}) { print("'$_' not exported !\n");}} @allsyms);
+print("# To export all, add:\n");
+print("our \@EXPORT = (".join(', ', map({"'$_'"} @allsyms)).");\n");
+
+# Dir listings
+print("# Dir listings ($DPUT::VERSION)");
+my $files = dir_list(".");
+print("F1:".Dumper($files));
+my $files2 = dir_list(".", 'tree' => 1);
+print("F2:".Dumper($files2));
+
+# Time
+my $now = isotime();
+my $date = `date -I`; chomp($date);
+if ($date eq substr($now, 0, 10)) { print("Date portion of $now matches $date\n");}
+else {print("isotime() error !\n");}
+print("Time: $now / $date\n");
