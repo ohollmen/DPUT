@@ -5,15 +5,19 @@
 # read - Read file content
 # 
 package DPUT;
+use strict;
+use warnings;
+
 use Exporter 'import';
 use JSON;
 use Data::Dumper;
 # Make thes also runtime wide global
 $Data::Dumper::Indent = 1;
 $Data::Dumper::Terse = 1;
+use File::Find;
 #use Scalar::Util; # reftype
-our @EXPORT = ('jsonfile_load', 'file_write', 'file_read', 'dir_list');
-our $VERSION = "0.0.1";
+our @EXPORT = ('jsonfile_load', 'jsonfile_write', 'file_write', 'file_read', 'dir_list', 'domainname', 'require_fastjson', 'file_checksum', 'isotime');
+our $VERSION = "0.0.2";
 
 ##### Reading and wring files
 my $okref = {'HASH' => 1, 'ARRAY' => 1,};
@@ -108,21 +112,42 @@ sub file_read {
 # List a single directory or subdirectory tree.
 # $path can be any resolvable path (relative or absolute).
 # Options:
-# - tree - Create recursive listing
-#
+# - 'tree' - Create recursive listing
+# - 'preprocess' - File::Find preprocess for tree traversal (triggered by 'tree' option)
 sub dir_list {
   my ($path, %opts) = @_;
-  if ($opts{'tree'}) {}
+  #my @files;
+  if ($opts{'tree'}) {
+	my $follow = $opts{'follow'} || 1;
+	my @files;
+	# Option 'no_chdir' makes $_ be == $File::Find::name
+	sub wanted {
+	  no warnings 'all'; # local $SIG{__WARN__} = sub { };
+	  my $an = $File::Find::name;
+	  $opts{'debug'} || print("Found: $an\n");
+	  push(@files, $an);
+	}
+	
+	my $ffopts = { "wanted" => \&wanted, "follow" => $follow, 'no_chdir' => 1};
+	find($ffopts, $path);
+	return \@files;
+  }
   my $ok = opendir(my $dir, "$path");
   if (!$ok) { die("Failed to open dir '$path' !"); }
   my @files = readdir($dir); # Actually files AND dirs
   closedir($dir);
+  # Possible filtering ...
   @files = grep({!/^\.\.?$/} @files);
   return \@files;
 }
+# Do flexible path prefixing
+sub dir_list_path_prefix {
+  my ($list, $prefix) = @_;
+  @$list = map({"$prefix/$_"} @$list);
+}
 
-
-# Probe DNS domainname (*not* NIS domainname)
+# Probe current DNS domainname (*not* NIS domainname) for the host app is running on.
+# Return full domain part of current host (e.g. passing host.example.com => example.com).
 sub domainname {
   my $domn = Net::Domain::hostdomain();
   # Need to strip something in case of Windows ?
@@ -164,4 +189,10 @@ sub file_checksum {
   my $digest = $ctx->hexdigest();
   close($fh);
   return $digest;
+}
+sub isotime {
+   my @t = localtime($_[0] ? $_[0] : time());
+   return sprintf("%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+     $t[5]+1900, $t[4]+1, $t[3], $t[2], $t[1], $t[0],
+    );
 }
