@@ -9,6 +9,7 @@ use Data::Dumper;
 use DPUT; # Just for Data::Dumper settings
 use DPUT::CLRunner;
 my $debug = 0;
+# CL Operations dispatch table.
 my $ops = {
   'mgreet' => \&greet_morning,
   'dgreet' => \&greet_day,
