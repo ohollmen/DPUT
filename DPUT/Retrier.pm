@@ -10,45 +10,49 @@
 # - badret_cli - Interprets success with a shell command line convention of
 #   zero value indicating success and non-zero return value indicating error.
 #   This allows
-# The default return value interpretation is "Perl style" and you do not have
-# to specify an 'badret' callback in your constructor.
+# 
+# the default return value interpretation is "Perl style" and you do not have
+# to specify a 'badret' callback in your constructor.
 # In case you have mixed convention cases in your app, the choices of coping
 # with this are:
+# 
 #     # Use local to set temporary value for the duration of current curly-scope
 #     # (sub, if- or else block, ...) which will be "undone" and reverted
 #     # back to default after exiting curly-scope.
 #     local $Retrier::badret = $Retrier::badret_cli;
 #     # You can also do this for your completely custom badret - interpreter:
 #     local $Retrier::badret = $Retrier::badret_myown;
+# 
 # Demontration of a custom badret -interpretation callback (and why callback
 # style interpretation may become handy):
-# sub badret_myown {
-#   my ($ret) = @_;
-#   # Up to value 3 return values are warnings and okay
-#   if ($ret > 3) { return 1; } # Bad
-#   return 0; # Good (<= 3)
-#}
+# 
+#     sub badret_myown {
+#       my ($ret) = @_;
+#       # Up to value 3 return values are warnings and okay
+#       if ($ret > 3) { return 1; } # Bad
+#       return 0; # Good (<= 3)
+#     }
 # 
 # ## Signaling results from all tries
 #
-# When $rt->run() returns with a value, it indicates the overall success
+# When `$rt->run()` returns with a value, it indicates the overall success
 # of operation independent of whether operation needed to be tried many times
 # or the first try succeeded.
 # The chosen return value is Perl style $ok - true for success indication (in
 # contrast to C-style $err error indication).
 #
-# # Notes on systems
+# ## Notes on systems
 #
 # To use this module effectively, you have to be somewhat familiar with
 # the error patterns of the (many times remote, over-the-network) systems
 # that you interact with. E.g 3 retries with a 3s delay on one relatively
 # reliable, but occasionally glitchy system (with a very small glitch
-# timewindow) might be releval, where as with a system where "bastard operator
+# timewindow) might be relevant, where as with a system where "bastard operator
 # from hell" reboots the system a few times a day to entertain himself may
 # require 6 minute (360s.) delay to allow the OS and services to come up.
-# Retrier provide no silver bullet or substitute for this knowledge.
+# Retrier provides no silver bullet or substitute for this knowledge.
 #
-# # TODO
+# ## TODO
 #
 # Consider millisecond resolution on delay. This would require pulling in
 # a CORE module dependency Time::HiRes. Would need to introduce 'unit'
@@ -61,32 +65,34 @@ use strict;
 use warnings;
 #use Time::HiRes ('usleep');
 our $VERSION = '0.0.1';
-# sub trythis {
-# 
-# }
-# new Retrier('cnt' => 2)->run(sub { trythis() } );
-# Change glocal settings by $Retrier::trycnt = ...
-# ... to avoid explicit settings with a re-trier instance.
-# 
+## sub trythis {
+## 
+## }
+## new Retrier('cnt' => 2)->run(sub { trythis() } );
+## Change glocal settings by $Retrier::trycnt = ...
+## ... to avoid explicit settings with a re-trier instance.
+## 
 our $trycnt = 3;
 our $delay = 10;
 our $debug = 0;
 our $badret = \&badret_perl;
 sub badret_cli {  return $_[0] ? 1 : 0;}
 sub badret_perl {  return $_[0] ? 0 : 1; }
-# ## Construct a Retrier
-# Run operation and detect it's 
+# ## DPUT::Retrier->new(%opts)
+# Construct a Retrier
 # Settings:
 # - cnt - Number of times to retry (default: 3)
 # - delay - delay between the tries (seconds, default: 10)
 # - args - Arguments (in array-ref) to pass to function to be run (Optional, no default).
 # - debug - A debug flag / level for enabling module internal messages
 #   (currently treated as flag with now distinct levels, default: 0)
+# 
 # Return instance reference.
 # The retry options can be passed either with keyword -style convention
 # or as a perl hash(ref) as argument
-# new Retrier('cnt' => 5);
-# new Retrier({'cnt' => 5});
+# 
+#     new Retrier('cnt' => 5);
+#     new Retrier({'cnt' => 5});
 #
 sub new {
   #my ($class, %opts) = @_;
@@ -111,32 +117,36 @@ sub new {
   return($rt);
 }
 
+# ## $retrier->run($callback)
 # Run the operational callback ('cnt') number of times
 # Callback is passed as first argument.
 # See Retrier constructor for retry params ('cnt','delay',...)
 # Return (perl style) true value for success, false for failure.
 # Example:
-# # Store news from flaky news site.
-# use LWP::Simple;
-# my $news; # Store news here.
-# # Use the perl-style $ok return value
-# sub get_news {
-#   my $cont = get("http://news.flaky.com/api/v3/news?today=1");
-#   if ($cont !~ /^\{/) { return 0; } # JSON curly not found !
-#   eval { $news = from_json($cont); }
-#   if ($@) { return 0; } # Still not good, JSON error
-#   return 1;
-#}
-# my $ok = Retrier->new('cnt' => 2, 'delay' => 3)->run(\&get_news);
-# # Same parametrized:
-# sub get_news {
-#   my ($jsonurl) = @_;
-#   my $cont = get($jsonurl);
-#   ...
-# my $url = "http://news.flaky.com/api/v3/news?today=1";
-# my $ok = Retrier->new('cnt' => 2, 'delay' => 3, 'args' => [$url])->run(\&get_news);
-# # Or you can just do
-# my $ok = Retrier->new('cnt' => 2, 'delay' => 3)->run(sub { return get_news($url); });
+# 
+#     # Store news from flaky news site.
+#     use LWP::Simple;
+#     my $news; # Store news here.
+#     # Use the perl-style $ok return value
+#     sub get_news {
+#       my $cont = get("http://news.flaky.com/api/v3/news?today=1");
+#       if ($cont !~ /^\{/) { return 0; } # JSON curly not found !
+#       eval { $news = from_json($cont); }
+#       if ($@) { return 0; } # Still not good, JSON error
+#       return 1;
+#     }
+#     my $ok = Retrier->new('cnt' => 2, 'delay' => 3)->run(\&get_news);
+#     # Same parametrized:
+#     sub get_news {
+#       my ($jsonurl) = @_;
+#       my $cont = get($jsonurl);
+#       ...
+#     my $url = "http://news.flaky.com/api/v3/news?today=1";
+#     my $ok = Retrier->new('cnt' => 2, 'delay' => 3, 'args' => [$url])->run(\&get_news);
+#     # Or you can just do
+#     my $ok = Retrier->new('cnt' => 2, 'delay' => 3)->run(sub { return get_news($url); });
+# 
+# TODO: Allow passing max time to try.
 sub run {
   my ($rt, $cb) = @_;
   my $cnt   = $rt->{'cnt'} || $trycnt;
