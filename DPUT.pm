@@ -4,8 +4,8 @@
 # listing directories (also recursively) on a very high level.
 # 
 # ## Reading and writing files
-# write - write content or append content to a (existing or new) file.
-# read - Read file content
+# - *write - write content or append content to a (existing or new) file.
+# - *read - Read file content into a variable (scalar or data structure for JSON, YAML, ...)
 # 
 package DPUT;
 use strict;
@@ -14,11 +14,11 @@ use warnings;
 use Exporter 'import';
 use JSON;
 use Data::Dumper;
-# Make thes also runtime wide global
+## Make thes also runtime wide global
 $Data::Dumper::Indent = 1;
 $Data::Dumper::Terse = 1;
 use File::Find;
-#use Scalar::Util; # reftype
+##use Scalar::Util; # reftype
 our @EXPORT = ('jsonfile_load', 'jsonfile_write', 'file_write', 'file_read', 'dir_list', 'domainname', 'require_fastjson', 'file_checksum', 'isotime');
 our $VERSION = "0.0.2";
 
@@ -66,15 +66,18 @@ sub jsonfile_write {
   return file_write($fname, $ref, 'fmt' => 'json');
 }
 
+# ## file_write($fname, $cont, %opts)
 # Write content (or data structure) to a file.
 # By default writing happens in non-appending / overwriting mode.
-# If content is
+# If content is a reference it is stored in one of the data structure based formats (json,perl,yaml) - see 'fmt' below.
 # Options in %opts:
 # - append - append to existing file content (opens file in append-mode)
 # - fmt - Format to serialize content to when the $cont parameter is actually a (data structure) reference
 #   Formats supported are: 'json', 'yaml' and 'perl' (Default: 'json')
+# 
 # Perl format is written with small indent and no perl variable name (e.g. $VAR1)
 # JSON is written in "pretty" format assuming it benefits out of human readability.
+# Return $ok (actually number of bytes written)
 sub file_write {
   my ($fname, $cont, %opts) = @_;
   if ($fname =~ /\n/) { die("Filename corrupt (name is multi-line - do you filename, content params swapped) !"); }
@@ -103,6 +106,7 @@ sub file_write {
   return $cnt;
 }
 
+# ## file_read($fname, %opts)
 # Read file content from a file by $fname.
 # Options in opts:
 # - 'lines' - Pre-split to lines and return array(ref) instead of scalar content
@@ -126,11 +130,13 @@ sub file_read {
   close($fh);
   return $cont;
 }
+# ## dir_list($path, %opts)
 # List a single directory or subdirectory tree.
 # $path can be any resolvable path (relative or absolute).
 # Options:
 # - 'tree' - Create recursive listing
 # - 'preprocess' - File::Find preprocess for tree traversal (triggered by 'tree' option)
+# Return the files as array(ref)
 sub dir_list {
   my ($path, %opts) = @_;
   #my @files;
@@ -157,12 +163,13 @@ sub dir_list {
   @files = grep({!/^\.\.?$/} @files);
   return \@files;
 }
-# Do flexible path prefixing
+## Do flexible path prefixing
 sub dir_list_path_prefix {
   my ($list, $prefix) = @_;
   @$list = map({"$prefix/$_"} @$list);
 }
 
+# ## domainname()
 # Probe current DNS domainname (*not* NIS domainname) for the host app is running on.
 # Return full domain part of current host (e.g. passing host.example.com => example.com).
 sub domainname {
@@ -171,6 +178,7 @@ sub domainname {
   return $domn;
 }
 
+# ## require_fastjson(%opts)
 # Mandate a fast and size-scalable JSON parser/serializer in current runtime.
 # Our biased favorite for this kind of parser is JSON::XS.
 # Option 'probe' does not load (and possibly fail with exception)
@@ -187,8 +195,10 @@ sub require_fastjson {
   $ver = $JSON::XS::VERSION;
   return $ver;
 }
+# ## file_checksum($fname, %opts)
 # Extract MD5 checksum (default) from a file.
-# Doing this inline in code is slightly tedious.
+# Doing this inline in code is slightly tedious. This works well as a shortcut.
+# Checksumming is still done efficiently by bot loading the whole content into memory.
 # Return MD5 Checksum.
 sub file_checksum {
   my ($fname, %opts) = @_;
@@ -207,6 +217,8 @@ sub file_checksum {
   close($fh);
   return $digest;
 }
+# ## isotime($time)
+# Generate local ISO timestamp for current moment in time or for another point in time - with optional $time parameter.
 sub isotime {
    my @t = localtime($_[0] ? $_[0] : time());
    return sprintf("%.4d-%.2d-%.2d %.2d:%.2d:%.2d",

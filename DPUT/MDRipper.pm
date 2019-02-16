@@ -5,15 +5,18 @@ use warnings;
 
 our $VERSION = '0.0.1';
 
-# MDRipper - Rip Markdown documentation out of (any) files
+# # MDRipper - Rip Markdown documentation out of (any) files
+# 
 # Markdown ripper uses a simple methodology for ripping MD content
 # out of files.
 # - Any lines starting with RegExp patter "^# " will be ripped
 # - TODO: allow "minlines" config var to eliminate blocks ofd less
 #   contiguous lines than number in "minlines"
-# - Return Doc content
-# - process one file at the time
+# - Return MD document content
+# - process one file at the time (mutiple files may be processed via same instance)
 
+# ## DPUT::MDRipper->new(%opts);
+# Construct new Markdown ripper.
 sub new {
   my ($class, %opts) = @_;
   my $mdr = {};
@@ -22,6 +25,10 @@ sub new {
   return $mdr
 }
 
+# ## $mdripper->rip($fname, %opts)
+# Rip Markdown content from a single file, whose name is passed as parameter.
+# Current settings of instance are used for this op.
+# Return Mardown content.
 sub rip {
   my ($mdr, $fname, %opts) = @_;
   my $lines = eval { file_read($fname, 'lines' => 1); };

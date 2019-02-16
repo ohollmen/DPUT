@@ -63,7 +63,9 @@ sub make_re {
   if ($reopt eq 'm') { return qr/$p->{'patt'}/m; }
   return qr/$p->{'patt'}/;
 }
-# Probe build tool command version and path from which it was found.
+# ## DPUT::ToolProbe::detect()
+# Probe tool command version and path from which it was found.
+# This happens for all the tools registered (See doc on how to add more tools).
 # Assume tools to support conventional --version option.
 # Return an hash of hashes containing:
 # - outer keys rflecting the tool name (from tool probe info $tool->{'cmd'})
