@@ -1,11 +1,12 @@
 
-# DataRun - Process datasets in series or in parallell (in a child process)
+# # DataRun - Process datasets in series or in parallell (in a child process)
 package DPUT::DataRun;
 use strict;
 use warnings;
 
 our $VERSION = '0.0.1';
-# ## Construct a DataRun Data processor object.
+# ## $drun = DPUT::DataRun->new($callback, $opts)
+# Construct a DataRun Data processor object.
 # Pass a mandatory callback $cb to run on each item passed later to one of:
 # - run_series($dataset)
 # - run_parallel($dataset)
@@ -20,7 +21,7 @@ our $VERSION = '0.0.1';
 # causes the call to it to block, and you may be wasting time idling (i.e. just waiting) in the main
 # process. If you have a pretty good idea of the processing time of children and what you could do
 # in the main process during that time, make an explict call to runwait() instead of using 'autpowait'.
-# Same wasteage happens when you call `run_parallel($dataset)->runwait()` in a method-chained manner.
+# Same wastage happens when you call `run_parallel($dataset)->runwait()` in a method-chained manner.
 # Examples higlighting this situation -
 # Blocking wait (with main process idling):
 #
@@ -28,10 +29,10 @@ our $VERSION = '0.0.1';
 #     DPUT::DataRun->new($dropts)->run_parallel($dataset)->runwait()
 #     # ... is effectively same as ...
 #     my $dropts = {'autowait' => 1};
-#     PUT::DataRun->new($dropts)->run_parallel($dataset);
+#     DPUT::DataRun->new($dropts)->run_parallel($dataset);
 #
 # Both of these block while waiting for children to process.
-# To really perform maximum multitasking and utilize the time in main process, do:
+# To really perform maximum multitasking while waiting and utilize the time in main process, do:
 #
 #     my $dropts = {}; # NO 'autowait'
 #     $drun = DPUT::DataRun->new()->run_parallel($dataset);
@@ -47,17 +48,18 @@ sub new {
   return $drun;
 }
 
+# ## $drun->run_series($dataset);
 # Run processing in series within main process.
 # This is a trivial (internally simple) method and **not** the reason to use DPUT::DataRun.
 # It merely exists to **compare** the savings caused by running data processing in parallel in
 # child processes. To do this rather easy comparison, do:
 #
-#    $drun = DPUT::DataRun->new(\&my_data_proc_sub, $dropts);
-#    # Time this
-#    my $res = $drun->run_series($dataset);
-#    # and time this
-#    my $res = $drun->run_parallel($dataset)->runwait();
-#    # ... Compare the 2 and see if running in parallell is worth it
+#     $drun = DPUT::DataRun->new(\&my_data_proc_sub, $dropts);
+#     # Time this
+#     my $res = $drun->run_series($dataset);
+#     # and time this
+#     my $res = $drun->run_parallel($dataset)->runwait();
+#     # ... Compare the 2 and see if running in parallell is worth it
 #
 # There is always a small overhead of launching child processes, so for a small number of items **and** short processing
 # time there may be no time benefit spawning the child processes in parallel.
@@ -75,10 +77,12 @@ sub run_series {
   $drun->{'res'} = $res;
   return $drun;
 }
+# ## $results = $drun->res();
 # Return result of run which is stored in instance.
 # Delete current result from instance (to reduce "state ambiguity" and for for next run via same instance).
 sub res { my $res = $_[0]->{'res'};delete($_[0]->{'res'}); return $res; }
 
+# ## $drun->reset();
 # Reset state information related to particular run via instance.
 # Reset internap properties are: 'res', 'numproc', 'pididx'.
 sub reset {
@@ -86,11 +90,12 @@ sub reset {
   my $stprops = ['res', 'numproc', 'pididx'];
   map({delete($drun->{$_});} @$stprops);
 }
-# Process Data items passed in with callback registered in the instance.
+# ## $drun->run_parallel($dataset);
+# Process Data items passed in in a parallel manner (by fork()).
 # Typical run setting:
 #
 #     my $dropts = {'ccb' => sub {}}; # Data run constructor options
-#     my $res = new DataRun(sub {  }, $dropts)->run_parallel($dataset)->runwait();
+#     my $res = new DataRun(sub { return myop($p1, $p2, $p3); }, $dropts)->run_parallel($dataset)->runwait();
 #
 # Return normally an object itself for method chaining (e.g. calling runwait()).
 # In case of 'autowait' setting in instance, the runwait() is automatically called and
@@ -126,6 +131,7 @@ sub run_parallel {
   return $drun;
   
 }
+# ## $drun->runwait();
 # Wait for the child processes spawned earlier to complete.
 # Allows a completion callback (configured as 'ccb' in constructor options) to be run on each data item.
 # Completion callback has signature ($item, $res, $pid) with follwing meanings
@@ -135,12 +141,12 @@ sub run_parallel {
 # - $pid - Child Process PID that processed item - in case original $cb used PID (e.g. create files,
 #   whose name contains PID)
 #
-# ## Filling or result $res
+# ### Filling of result $res
 #
-# The $res starts out as an empty hash/object (refrence, i.e. $res = {}) and completion callback need to
-# establish its own application / "run case" specific organization within $res object.
+# The $res starts out as an empty hash/object (refrence, i.e. $res = {}) and completion callback needs to
+# establish its own application (or "run case") specific organization within $res object. Completion callback
+# will basically "fill in" this object the way it wants to allow main application to have access to results.
 # $res is returned by runwait() or retrievable by res() method.
-#
 sub runwait {
   my ($drun) = @_;
   my $numproc = $drun->{'numproc'};
@@ -162,6 +168,7 @@ sub runwait {
   #return $drun;
   return $res;
 }
+# ## $drun->run_forked_single()
 # Process single item as a subprocess.
 # This allows for example re-using the the existing instance of DataRun to be used for
 # running single item in sub-process.
