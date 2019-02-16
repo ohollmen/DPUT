@@ -170,7 +170,7 @@ sub runwait {
 }
 # ## $drun->run_forked_single()
 # Process single item as a subprocess.
-# This allows for example re-using the the existing instance of DataRun to be used for
+# This allows for example re-using the existing instance of DataRun to be used for
 # running single item in sub-process.
 sub run_forked_single {
   my ($drun, $data) = @_;
