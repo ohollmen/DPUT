@@ -12,10 +12,12 @@ my @mods = ("DPUT.pm",);
 my @mods2 = ("CLRunner",  "DataRun",  "MDRipper",  "OpRun", "Retrier", "ToolProbe");
 map({push(@mods, "DPUT/$_.pm");} @mods2);
 #my $fname = "../DPUT/DataRun.pm";
+my $fullmd = "";
 for (@mods) {
   my $fname = "../$_";
   if (!-f $fname) { die("No file: '$fname' !"); }
   my $md = DPUT::MDRipper->new()->rip($fname);
+  $fullmd .= $md;
   #print($md);
   my $html = markdown($md);
   #print($html);
@@ -23,3 +25,8 @@ for (@mods) {
   print(STDERR "Suggested name: '$outfname'\n");
   file_write($outfname, $html);
 }
+# Write README.md
+my $fullfn = "../README.md";
+print(STDERR "Writing Main Module document: '$fullfn'\n");
+
+file_write($fullfn, $fullmd);

@@ -9,8 +9,11 @@ our $VERSION = "0.0.1";
 our $runneropts_g = {
 
 };
+# # CLRunner - Design command line apps and interfaces with ease.
+# 
+# ## $clrunner = DPUT::CLRunner->new($optmeta, $runneropts)
 # Missing 'ops' means that subcommands are not supported by this utility and this instance.
-# NOT: Allow validate CB. "defop"
+## NOT: Allow validate CB. "defop"
 sub new {
   my ($class, $optmeta, $runneropts) = @_;
   # TODO: Allow leaving empty - meaning no subcommands or assigning later (by ops())
@@ -28,6 +31,7 @@ sub new {
   bless($clr, $class);
   return($clr);
 }
+# ## $clrunner->ops($ops)
 # Explicit method to set operations (sub command dispatch table).
 # Options:
 # - 'merge' - When set to true value, the new $ops will be merged with possible existing values (in overriding manner)
@@ -47,7 +51,7 @@ sub optmeta {
   my ($clr) = @_;
 }
 
-# Internal method to Extract operation from pre-validated ops (hashref)
+## Internal method to Extract operation from pre-validated ops (hashref)
 sub operation {
   my ($clr, $ops) = @_; 
   # Is unique op ?
@@ -56,7 +60,10 @@ sub operation {
   if ($op) { return $op; }
   
 }
-# Internal detector if 
+# ## isuniop($ops)
+# Internal detector to see if there is only single unambiguous operation in dispatch table.
+# Return the op name (key in dispatch table for the uique op, undef otherwise.
+# Only for module internal use (Do not use from outside app).
 sub isuniop {
   my ($ops) = @_;
   if (!$ops) { return undef; }
@@ -65,9 +72,12 @@ sub isuniop {
   if (scalar(@keys) == 1) { return $keys[0]; }
   return undef;
 }
-  
-# Run application in ops mode or single-op mode.
-# 
+
+# ## $clrunner->run($opts)
+# Run application in ops mode or single-op mode. This will be auto-detected.
+# Options:
+# 'exit' - Auto exit after dispatching operation.
+# Return instance for method chaining.
 sub run {
   my ($clr, $opts) = @_; # , $runneropts
   
@@ -99,7 +109,7 @@ sub run {
   } # Add subcommand as op (should not overlap with other options)
   return $clr;
 }
-
+# ## $cl_params_string = $clrunner->args($clioptions)
 # Turn opts (back) to CL argumnents, either an Array or string-serialized (quoted, escaped) form.
 # Uses CLRunner 'optmeta' as guide for the serialization.
 # Return array (default) or command line ready arguments string if 'str' option is passed.
