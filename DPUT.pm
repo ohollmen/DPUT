@@ -1,5 +1,8 @@
-# # The most elementary Data processing utilities
+# # DPUT - The most elementary Data processing utilities
 #
+# This module is not Object oriented in any way. It contains the most elementary operations like file reading/writing,
+# listing directories (also recursively) on a very high level.
+# 
 # ## Reading and writing files
 # write - write content or append content to a (existing or new) file.
 # read - Read file content
@@ -21,6 +24,7 @@ our $VERSION = "0.0.2";
 
 ##### Reading and wring files
 my $okref = {'HASH' => 1, 'ARRAY' => 1,};
+# ## jsonfile_load($fname, %opts)
 # Load a JSON data from a file ($fname).
 # There is no constraint of what type (array, object) the "data root" is.
 # Allow options:
@@ -48,8 +52,10 @@ sub jsonfile_load {
   if ($@) { die("jsonfile_load: from_json: Problems parsing JSON: $@\n"); }
   return $j;
 }
-# Write JSON file
-# Shorthand form of: `file_write($fname, $datatree, 'fmt' => 'json');`
+# ## jsonfile_write($fname, $ref, %opts);
+# Write JSON file.
+# By default the formatting is done "pretty" way (not single-line whitespace stripped).
+# This is basically a shorthand form of: `file_write($fname, $datatree, 'fmt' => 'json');`
 # However this mandates $datatree parameter in above to be a reference to either
 # HASH or ARRAY (as writing a scalar number or string as JSON is niche thing to do).
 sub jsonfile_write {
@@ -97,15 +103,26 @@ sub file_write {
   return $cnt;
 }
 
+# Read file content from a file by $fname.
+# Options in opts:
+# - 'lines' - Pre-split to lines and return array(ref) instead of scalar content
+# - 'rtrim' - Get rid of trailing newline
+# Return file content as scalar string (default) or array(ref) (with option 'lines')
 sub file_read {
-  my ($fname) = @_;
+  my ($fname, %opts) = @_;
   if ($fname =~ /\n/) { die("Filename corrupt !");}
   if (!-f $fname) { die("file_read: File by name '$fname' does not exist for reading."); }
-  local $/ = undef();
+  
   my $fh;
   my $ok = open($fh, "<", $fname);
   if (!$ok) { die("file_read: File by name '$fname' not opened !"); }
-  my $cont = <$fh>;
+  my $cont;
+  if ($opts{'lines'}) {
+    my @lines = <$fh>;
+    if ($opts{'rtrim'}) { chomp(@lines); } # Chomp / trim
+    $cont = \@lines;
+  } 
+  else { local $/ = undef(); $cont = <$fh>; }
   close($fh);
   return $cont;
 }
@@ -118,19 +135,19 @@ sub dir_list {
   my ($path, %opts) = @_;
   #my @files;
   if ($opts{'tree'}) {
-	my $follow = $opts{'follow'} || 1;
-	my @files;
-	# Option 'no_chdir' makes $_ be == $File::Find::name
-	sub wanted {
-	  no warnings 'all'; # local $SIG{__WARN__} = sub { };
-	  my $an = $File::Find::name;
-	  $opts{'debug'} || print("Found: $an\n");
-	  push(@files, $an);
-	}
-	
-	my $ffopts = { "wanted" => \&wanted, "follow" => $follow, 'no_chdir' => 1};
-	find($ffopts, $path);
-	return \@files;
+    my $follow = $opts{'follow'} || 1;
+    my @files;
+    # Option 'no_chdir' makes $_ be == $File::Find::name
+    sub wanted {
+      no warnings 'all'; # local $SIG{__WARN__} = sub { };
+      my $an = $File::Find::name;
+      $opts{'debug'} || print("Found: $an\n");
+      push(@files, $an);
+    }
+    
+    my $ffopts = { "wanted" => \&wanted, "follow" => $follow, 'no_chdir' => 1};
+    find($ffopts, $path);
+    return \@files;
   }
   my $ok = opendir(my $dir, "$path");
   if (!$ok) { die("Failed to open dir '$path' !"); }
