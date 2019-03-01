@@ -2,14 +2,16 @@ package DPUT::ToolProbe;
 use strict;
 use warnings;
 
-# # Detect command-line tool versions
-# # Tool definitions
+# # DPUT::ToolProbe - Detect command-line tool versions
+# 
+# ## Tool definitions
+# 
 # Tool definition consists of following members:
 # - cmd - The command (basename) for tool (e.g. 'perl', without path)
 # - patt - Regular expression for detecting and extracting version
-# - stderr - Flag for extracting version info from stderr (instead of default stdout)
+# - stderr - Flag for extracting version information from stderr (instead of default stdout)
 #
-# # Adding new tool definitions
+# ## Adding new tool definitions
 # The module comes with a basic set of tool definitions
 # Note, this is kept module-global to allow simple
 # additions by (e.g.):
@@ -72,6 +74,8 @@ sub make_re {
 # - inner object containing members:
 #   - path - Full path to tool
 #   - version - Version of the tool (extracted)
+# 
+#  
 sub detect {
   my (%opts) = @_;
   #my ($addlitems) = @_; # Additional items ?
