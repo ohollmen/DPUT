@@ -1,6 +1,10 @@
 # # Retrier - Try operation multiple times in failsafe manner
+# Most typical use case for retrying would likely be an operation over the network
+# (e.g. HTTP, SSH, Git, FTP, ...).
+# Even reliable and well-maintained environment occasionally have brief glitches that
+# prevent interaction with a single try.
 #
-# ## Signaling results from single try
+# ## Signaling results from single try callback
 #
 # The return value from the callback of `...->run($cb)` is - for most
 # flexibility - tested with a callback. While this initially seems inconvenient,
@@ -23,7 +27,7 @@
 #     # You can also do this for your completely custom badret - interpreter:
 #     local $Retrier::badret = $Retrier::badret_myown;
 # 
-# Demontration of a custom badret -interpretation callback (and why callback
+# Demonstration of a custom badret -interpretation callback (and why callback
 # style interpretation may become handy):
 # 
 #     sub badret_myown {
@@ -33,7 +37,10 @@
 #       return 0; # Good (<= 3)
 #     }
 # 
-# ## Signaling results from all tries
+# This flexibility on iterpreting return values will hopefully allow running *any* existing
+# sub / function in a retried manner.
+#
+# ## Signaling results from run() (all tries)
 #
 # When `$rt->run()` returns with a value, it indicates the overall success
 # of operation independent of whether operation needed to be tried many times
@@ -41,7 +48,7 @@
 # The chosen return value is Perl style $ok - true for success indication (in
 # contrast to C-style $err error indication).
 #
-# ## Notes on systems
+# ## Notes on systems you interact with
 #
 # To use this module effectively, you have to be somewhat familiar with
 # the error patterns of the (many times remote, over-the-network) systems
@@ -79,7 +86,7 @@ our $badret = \&badret_perl;
 sub badret_cli {  return $_[0] ? 1 : 0;}
 sub badret_perl {  return $_[0] ? 0 : 1; }
 # ## DPUT::Retrier->new(%opts)
-# Construct a Retrier
+# Construct a Retrier.
 # Settings:
 # - cnt - Number of times to retry (default: 3)
 # - delay - delay between the tries (seconds, default: 10)
@@ -89,7 +96,7 @@ sub badret_perl {  return $_[0] ? 0 : 1; }
 # 
 # Return instance reference.
 # The retry options can be passed either with keyword -style convention
-# or as a perl hash(ref) as argument
+# or as a perl hash(ref) as argument:
 # 
 #     new Retrier('cnt' => 5);
 #     new Retrier({'cnt' => 5});
@@ -118,7 +125,7 @@ sub new {
 }
 
 # ## $retrier->run($callback)
-# Run the operational callback ('cnt') number of times
+# Run the operational callback ('cnt') number of times to successfully execute it.
 # Callback is passed as first argument.
 # See Retrier constructor for retry params ('cnt','delay',...)
 # Return (perl style) true value for success, false for failure.
@@ -126,6 +133,7 @@ sub new {
 # 
 #     # Store news from flaky news site.
 #     use LWP::Simple;
+#     use JSON;
 #     my $news; # Store news here.
 #     # Use the perl-style $ok return value
 #     sub get_news {
@@ -133,10 +141,10 @@ sub new {
 #       if ($cont !~ /^\{/) { return 0; } # JSON curly not found !
 #       eval { $news = from_json($cont); }
 #       if ($@) { return 0; } # Still not good, JSON error
-#       return 1;
+#       return 1; # Success, Perl style $ok value
 #     }
 #     my $ok = Retrier->new('cnt' => 2, 'delay' => 3)->run(\&get_news);
-#     # Same parametrized:
+#     # Same parametrized (with 'args'):
 #     sub get_news {
 #       my ($jsonurl) = @_;
 #       my $cont = get($jsonurl);
@@ -144,8 +152,13 @@ sub new {
 #     my $url = "http://news.flaky.com/api/v3/news?today=1";
 #     my $ok = Retrier->new('cnt' => 2, 'delay' => 3, 'args' => [$url])->run(\&get_news);
 #     # Or you can just do
-#     my $ok = Retrier->new('cnt' => 2, 'delay' => 3)->run(sub { return get_news($url); });
+#     my $ok = DPUT::Retrier->new('cnt' => 2, 'delay' => 3)->run(sub { return get_news($url); });
 # 
+# Store good app-wide defaults in Retrier class vars to make construction super brief.
+# 
+#     $DPUT::Retrier::trycnt = 3;
+#     $DPUT::Retrier::delay = 10;
+#     my $ok = DPUT::Retrier->new()->run(sub { get($url); });
 # TODO: Allow passing max time to try.
 sub run {
   my ($rt, $cb) = @_;
