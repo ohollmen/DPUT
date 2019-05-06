@@ -23,7 +23,7 @@ for (@mods) {
   my $md = DPUT::MDRipper->new()->rip($fname);
   $fullmd .= $md;
   #print($md);
-  if (createhtml) {
+  if ($createhtml) {
     my $html = markdown($md);
     #print($html);
     my $outfname = "./".basename($fname).".html";
