@@ -18,7 +18,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 $Data::Dumper::Terse = 1;
 use File::Find;
-##use Scalar::Util; # reftype
+use Scalar::Util ('reftype');
 our @EXPORT = ('jsonfile_load', 'jsonfile_write', 'file_write', 'file_read', 'dir_list', 'domainname', 'require_fastjson', 'file_checksum', 'isotime');
 our $VERSION = "0.0.2";
 
@@ -44,7 +44,9 @@ sub jsonfile_load {
   my $cont = file_read($fname);
   if ($opts{'contref'}) {} # TODO: !
   if ($opts{'stripcomm'}) {
+    
     my $re = qr/$opts{'stripcomm'}/;
+    #print(STDERR "Stripping comments by string re: '$opts{'stripcomm'}', Compiled: $re\n");
     $cont =~ s/$re//gm;
   }
   my $j;
@@ -61,7 +63,7 @@ sub jsonfile_load {
 sub jsonfile_write {
   my ($fname, $ref, %opts) = @_;
   # Check reference
-  my $rt = ref($ref); # reftype() ?
+  my $rt = reftype($ref); # reftype() ?
   if (!$okref->{$rt}) { die("data must be either HASH or ARRAY");}
   return file_write($fname, $ref, 'fmt' => 'json');
 }
@@ -84,13 +86,17 @@ sub file_write {
   if (!defined($cont)) { die("Content is not defined (even empty content is okay)\n"); }
   my $mode = $opts{'append'} ? '>>' : '>';
   my $fh;
-  my $ok = open($fh, $mode, $fname);
-  if (!$ok) { die("Failed to open $fname"); }
+  if ($fname eq '-') { $fh = *STDOUT; } # Allow write to STDOUT
+  else {
+    my $ok = open($fh, $mode, $fname);
+    if (!$ok) { die("Failed to open $fname"); }
+  }
+  #FILEOPENED:
   # Got data structure
   my $fmt = $opts{'fmt'} || 'json';
   my $ref = ref($cont);
   if ($ref && ($fmt eq 'json')) {
-    $cont = to_json($cont, {canonical => 1, pretty => 1});
+    $cont = to_json($cont, {canonical => 1, pretty => 1, convert_blessed => 1});
   }
   elsif ($ref && ($fmt eq 'yaml')) {
     require("YAML.pm"); # Lazy-load YAML;
@@ -102,7 +108,7 @@ sub file_write {
   elsif ($ref) { die("Format '$fmt' not supported !"); }
   my $cnt = print($fh $cont);
   #if ($cnt != length($cont)) {}
-  close($fh);
+  if ($fname ne '-') { close($fh); }
   return $cnt;
 }
 
