@@ -108,7 +108,7 @@ Pass a mandatory callback $cb to run on each item passed later to one of:
 - run_forked_single($data_item)
 Options in $opts:
 - 'ccb' - Completion callback (for single item of $dataset array)
-- 'autowait' - Flag to wait for children to complete automatically inside
+- 'autowait' - Flag to wait for children to complete automatically inside the run_* function
 
 ### Notes on 'autowait'
 
@@ -121,16 +121,16 @@ Examples higlighting this situation -
 Blocking wait (with main process idling):
 
     my $dropts = {}; # NO 'autowait'
-    DPUT::DataRun->new($dropts)->run_parallel($dataset)->runwait()
+    DPUT::DataRun->new($cb, $dropts)->run_parallel($dataset)->runwait()
     # ... is effectively same as ...
     my $dropts = {'autowait' => 1};
-    DPUT::DataRun->new($dropts)->run_parallel($dataset);
+    DPUT::DataRun->new($cb, $dropts)->run_parallel($dataset);
 
 Both of these block while waiting for children to process.
 To really perform maximum multitasking while waiting and utilize the time in main process, do:
 
     my $dropts = {}; # NO 'autowait'
-    $drun = DPUT::DataRun->new()->run_parallel($dataset);
+    $drun = DPUT::DataRun->new($cb, $dropts)->run_parallel($dataset);
     # Optimally this should take approx same time as parallel processing by children
     do_someting_else_while_waiting_children($somedata); # Utilize the waiting time !
     $drun->runwait();
@@ -238,7 +238,12 @@ Wait for the child processes to complete (Similar to DPUT::DataRun::runwait() me
 
 # Retrier - Try operation multiple times in failsafe manner
 
-## Signaling results from single try
+Most typical use case for retrying would likely be an operation over the network
+(e.g. HTTP, SSH, Git, FTP, ...).
+Even reliable and well-maintained environment occasionally have brief glitches that
+prevent interaction with a single try.
+
+## Signaling results from single try callback
 
 The return value from the callback of `...->run($cb)` is - for most
 flexibility - tested with a callback. While this initially seems inconvenient,
@@ -261,7 +266,7 @@ with this are:
     # You can also do this for your completely custom badret - interpreter:
     local $Retrier::badret = $Retrier::badret_myown;
 
-Demontration of a custom badret -interpretation callback (and why callback
+Demonstration of a custom badret -interpretation callback (and why callback
 style interpretation may become handy):
 
     sub badret_myown {
@@ -271,7 +276,10 @@ style interpretation may become handy):
       return 0; # Good (<= 3)
     }
 
-## Signaling results from all tries
+This flexibility on iterpreting return values will hopefully allow running *any* existing
+sub / function in a retried manner.
+
+## Signaling results from run() (all tries)
 
 When `$rt->run()` returns with a value, it indicates the overall success
 of operation independent of whether operation needed to be tried many times
@@ -279,7 +287,7 @@ or the first try succeeded.
 The chosen return value is Perl style $ok - true for success indication (in
 contrast to C-style $err error indication).
 
-## Notes on systems
+## Notes on systems you interact with
 
 To use this module effectively, you have to be somewhat familiar with
 the error patterns of the (many times remote, over-the-network) systems
@@ -300,7 +308,7 @@ and not worth the dependency.
 DPUT::Retrier
 
 ## DPUT::Retrier->new(%opts)
-Construct a Retrier
+Construct a Retrier.
 Settings:
 - cnt - Number of times to retry (default: 3)
 - delay - delay between the tries (seconds, default: 10)
@@ -310,13 +318,13 @@ Settings:
 
 Return instance reference.
 The retry options can be passed either with keyword -style convention
-or as a perl hash(ref) as argument
+or as a perl hash(ref) as argument:
 
     new Retrier('cnt' => 5);
     new Retrier({'cnt' => 5});
 
 ## $retrier->run($callback)
-Run the operational callback ('cnt') number of times
+Run the operational callback ('cnt') number of times to successfully execute it.
 Callback is passed as first argument.
 See Retrier constructor for retry params ('cnt','delay',...)
 Return (perl style) true value for success, false for failure.
@@ -324,6 +332,7 @@ Example:
 
     # Store news from flaky news site.
     use LWP::Simple;
+    use JSON;
     my $news; # Store news here.
     # Use the perl-style $ok return value
     sub get_news {
@@ -331,10 +340,10 @@ Example:
       if ($cont !~ /^\{/) { return 0; } # JSON curly not found !
       eval { $news = from_json($cont); }
       if ($@) { return 0; } # Still not good, JSON error
-      return 1;
+      return 1; # Success, Perl style $ok value
     }
     my $ok = Retrier->new('cnt' => 2, 'delay' => 3)->run(\&get_news);
-    # Same parametrized:
+    # Same parametrized (with 'args'):
     sub get_news {
       my ($jsonurl) = @_;
       my $cont = get($jsonurl);
@@ -342,18 +351,25 @@ Example:
     my $url = "http://news.flaky.com/api/v3/news?today=1";
     my $ok = Retrier->new('cnt' => 2, 'delay' => 3, 'args' => [$url])->run(\&get_news);
     # Or you can just do
-    my $ok = Retrier->new('cnt' => 2, 'delay' => 3)->run(sub { return get_news($url); });
+    my $ok = DPUT::Retrier->new('cnt' => 2, 'delay' => 3)->run(sub { return get_news($url); });
 
+Store good app-wide defaults in Retrier class vars to make construction super brief.
+
+    $DPUT::Retrier::trycnt = 3;
+    $DPUT::Retrier::delay = 10;
+    my $ok = DPUT::Retrier->new()->run(sub { get($url); });
 TODO: Allow passing max time to try.
 
-# Detect command-line tool versions
-# Tool definitions
+# DPUT::ToolProbe - Detect command-line tool versions
+
+## Tool definitions
+
 Tool definition consists of following members:
 - cmd - The command (basename) for tool (e.g. 'perl', without path)
 - patt - Regular expression for detecting and extracting version
-- stderr - Flag for extracting version info from stderr (instead of default stdout)
+- stderr - Flag for extracting version information from stderr (instead of default stdout)
 
-# Adding new tool definitions
+## Adding new tool definitions
 The module comes with a basic set of tool definitions
 Note, this is kept module-global to allow simple
 additions by (e.g.):
@@ -392,4 +408,63 @@ Return an hash of hashes containing:
 - inner object containing members:
   - path - Full path to tool
   - version - Version of the tool (extracted)
+
+ 
+
+# DPUT::RSyncer - perform one or more copy tasks with rsync
+
+Allow sync tasks to run in series or parallell.
+TODO: Allow templating on src and dest by auto-detecting template delimiters (e.g. '{{' and '}}')
+
+## Notes on SSH
+As any modern rsync setting uses SSH as transport, it is important to know the basics of SSH before
+starting to use this. Both rsync and 'onhost' feature rely on SSH. In any kind of non-interactive
+automation setting you likely need your SSH public key copied to remote host to allow passwordless
+SSH.
+
+use Text::Template;
+use Storable;
+
+## RSyncer->new($tasksconf, %opts);
+
+Rsync Task items in $tasksconf (AoH) should have following properties:
+- src - Rsync source (mandatory, per rsync CL conventions)
+- dest - Rsync destination (mandatory, per rsync CL conventions)
+- title - Descriptive name for the Rsync Task (optional)
+- opts - Explicit rsync CL options starting with "-" (Implicit Default "-av")
+- excludes - An Array of Exclude patterns to serialize to command line (Optional, No defaults)
+- onhost - Run the rsync operation completely on a remote host
+
+Options in %opts:
+- title - The title/name for the whole set of rsync tasks
+- debug - Debug level (currently true/false flag) for rsync message verbosity.
+- runtype - 'series' (default) or 'parallel'
+
+Notice that currently the policy to run is "all in series" or "all in parallel" with no further
+granularity by nesting tasks into sets of parallel / in series runnable sets.
+However this limitation can be (for now) worked around on the application level by bit of
+filtering (Perl: grep()) or using multiple Rsyncer configs.
+
+
+## $rsyncer->run()
+Currenltly no options are supported, but the operation is completely driven by the config
+data given at construction.
+Run RSyncer tasks in series or parallel manner (as dictated by $rsyncer options at construction).
+After the run the rsync task nodes will have rsync result info written on them:
+- time - Time used for the single rsync
+- pid - Process id of the process that run the sync in 'parallel' run (series run pid will be set to 0)
+- rv  - rsync return value (man rsync to to interpret error values)
+- cmde - Underlying command that was generated to run rsync.
+
+## $rst->rsync($syncer)
+
+Perform single rsync on the low level.
+Will return results of a sync in a JSON results file with:
+- PID of child process
+- Return value (pre-shifted to a sane man-page kinda easily interpretable value)
+- time spent (s.)
+- TODO: list or number of files
+These results are available to application as data structure, no poking of JSON file is necessary.
+Return always 1 here and let (top level) caller detect actual rsync (or ssh, for 'ohhost') return value
+from task node 'rv' (return value).
 
