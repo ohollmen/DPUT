@@ -13,7 +13,7 @@ our $VERSION = '0.0.1';
 # - run_forked_single($data_item)
 # Options in $opts:
 # - 'ccb' - Completion callback (for single item of $dataset array)
-# - 'autowait' - Flag to wait for children to complete automatically inside
+# - 'autowait' - Flag to wait for children to complete automatically inside the run_* function
 #
 # ### Notes on 'autowait'
 #
@@ -26,16 +26,16 @@ our $VERSION = '0.0.1';
 # Blocking wait (with main process idling):
 #
 #     my $dropts = {}; # NO 'autowait'
-#     DPUT::DataRun->new($dropts)->run_parallel($dataset)->runwait()
+#     DPUT::DataRun->new($cb, $dropts)->run_parallel($dataset)->runwait()
 #     # ... is effectively same as ...
 #     my $dropts = {'autowait' => 1};
-#     DPUT::DataRun->new($dropts)->run_parallel($dataset);
+#     DPUT::DataRun->new($cb, $dropts)->run_parallel($dataset);
 #
 # Both of these block while waiting for children to process.
 # To really perform maximum multitasking while waiting and utilize the time in main process, do:
 #
 #     my $dropts = {}; # NO 'autowait'
-#     $drun = DPUT::DataRun->new()->run_parallel($dataset);
+#     $drun = DPUT::DataRun->new($cb, $dropts)->run_parallel($dataset);
 #     # Optimally this should take approx same time as parallel processing by children
 #     do_someting_else_while_waiting_children($somedata); # Utilize the waiting time !
 #     $drun->runwait();
@@ -70,9 +70,10 @@ sub run_series {
   my $res = {};
   # NOTE: If $ccb uses 
   for my $reltar (@$tars) {
-    #tarfile_process($reltar);
     my $ret = $cb->($reltar);
-    $ccb && $ccb->($reltar, $res);
+    # NOTE: 3rd param $pid not available / relevant for series run.
+    # NOTE: $res for parallell run is an index by PID, which does not make sense for series run.
+    $ccb && $ccb->($reltar, $res, 0);
   }
   $drun->{'res'} = $res;
   return $drun;
@@ -155,7 +156,7 @@ sub runwait {
   for (1 .. $numproc) {
     my $pid = wait();
     if ($pid == -1) { print(STDERR "PID: -1\n"); last; }
-    $drun->{'debug'} && print(STDERR "Parent: $pid exited\n");
+    $drun->{'debug'} && print(STDERR "Parent: Child $pid just exited\n");
     # Resolve original data item
     my $item = $drun->{'pididx'}->{$pid}; # Lookup original data
     # Check for completion callback
