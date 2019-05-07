@@ -62,7 +62,7 @@ sub DPUT::RSyncer::errorsummary {
   # my @errs = ();
   my @errs = map({ $_->{'rv'} ? $_->{'rv'} : (); } @{$rsyncer->{'tasks'}});
   my $errcnt = scalar(@errs);
-  if ($errcnt) { die("Some ($errcnt/$totcnt) of the rsync ops failed !"); }
+  if ($errcnt) { die("Some ($errcnt/$totcnt, Errors: ".join(',', @errs).") of the rsync ops failed !"); }
 }
 
 
