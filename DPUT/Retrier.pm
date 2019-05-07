@@ -1,4 +1,5 @@
 # # Retrier - Try operation multiple times in failsafe manner
+#
 # Most typical use case for retrying would likely be an operation over the network
 # (e.g. HTTP, SSH, Git, FTP, ...).
 # Even reliable and well-maintained environment occasionally have brief glitches that
@@ -23,9 +24,9 @@
 #     # Use local to set temporary value for the duration of current curly-scope
 #     # (sub, if- or else block, ...) which will be "undone" and reverted
 #     # back to default after exiting curly-scope.
-#     local $Retrier::badret = $Retrier::badret_cli;
+#     local $DPUT::Retrier::badret = $Retrier::badret_cli;
 #     # You can also do this for your completely custom badret - interpreter:
-#     local $Retrier::badret = $Retrier::badret_myown;
+#     local $DPUT::Retrier::badret = $Retrier::badret_myown;
 # 
 # Demonstration of a custom badret -interpretation callback (and why callback
 # style interpretation may become handy):
@@ -98,8 +99,8 @@ sub badret_perl {  return $_[0] ? 0 : 1; }
 # The retry options can be passed either with keyword -style convention
 # or as a perl hash(ref) as argument:
 # 
-#     new Retrier('cnt' => 5);
-#     new Retrier({'cnt' => 5});
+#     new DPUT::Retrier('cnt' => 5);
+#     new DPUT::Retrier({'cnt' => 5});
 #
 sub new {
   #my ($class, %opts) = @_;
@@ -150,15 +151,18 @@ sub new {
 #       my $cont = get($jsonurl);
 #       ...
 #     my $url = "http://news.flaky.com/api/v3/news?today=1";
-#     my $ok = Retrier->new('cnt' => 2, 'delay' => 3, 'args' => [$url])->run(\&get_news);
-#     # Or you can just do
+#     my $ok = DPUT::Retrier->new('cnt' => 2, 'delay' => 3, 'args' => [$url])->run(\&get_news);
+#     # Or you can just do (no 'args' needed).
 #     my $ok = DPUT::Retrier->new('cnt' => 2, 'delay' => 3)->run(sub { return get_news($url); });
 # 
-# Store good app-wide defaults in Retrier class vars to make construction super brief.
+# Store good app-wide defaults in DPUT::Retrier class vars to make construction super brief.
 # 
 #     $DPUT::Retrier::trycnt = 3;
 #     $DPUT::Retrier::delay = 10;
 #     my $ok = DPUT::Retrier->new()->run(sub { get($url); });
+#
+# This is a valid approach when settings are universal to whole app (no variance between the calls).
+#
 # TODO: Allow passing max time to try.
 sub run {
   my ($rt, $cb) = @_;
