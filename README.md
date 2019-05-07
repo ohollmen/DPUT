@@ -198,6 +198,10 @@ Process single item as a subprocess.
 This allows for example re-using the existing instance of DataRun to be used for
 running single item in sub-process.
 
+## TODO
+Create a simple event mechanism with onstart/onend events where processing can be done or things can be recorded
+(e.g. init / cleanup, calcing duration ...)
+
 # MDRipper - Rip Markdown documentation out of (any) files
 
 Markdown ripper uses a simple methodology for ripping MD content
@@ -262,9 +266,9 @@ with this are:
     # Use local to set temporary value for the duration of current curly-scope
     # (sub, if- or else block, ...) which will be "undone" and reverted
     # back to default after exiting curly-scope.
-    local $Retrier::badret = $Retrier::badret_cli;
+    local $DPUT::Retrier::badret = $Retrier::badret_cli;
     # You can also do this for your completely custom badret - interpreter:
-    local $Retrier::badret = $Retrier::badret_myown;
+    local $DPUT::Retrier::badret = $Retrier::badret_myown;
 
 Demonstration of a custom badret -interpretation callback (and why callback
 style interpretation may become handy):
@@ -320,8 +324,8 @@ Return instance reference.
 The retry options can be passed either with keyword -style convention
 or as a perl hash(ref) as argument:
 
-    new Retrier('cnt' => 5);
-    new Retrier({'cnt' => 5});
+    new DPUT::Retrier('cnt' => 5);
+    new DPUT::Retrier({'cnt' => 5});
 
 ## $retrier->run($callback)
 Run the operational callback ('cnt') number of times to successfully execute it.
@@ -349,15 +353,18 @@ Example:
       my $cont = get($jsonurl);
       ...
     my $url = "http://news.flaky.com/api/v3/news?today=1";
-    my $ok = Retrier->new('cnt' => 2, 'delay' => 3, 'args' => [$url])->run(\&get_news);
-    # Or you can just do
+    my $ok = DPUT::Retrier->new('cnt' => 2, 'delay' => 3, 'args' => [$url])->run(\&get_news);
+    # Or you can just do (no 'args' needed).
     my $ok = DPUT::Retrier->new('cnt' => 2, 'delay' => 3)->run(sub { return get_news($url); });
 
-Store good app-wide defaults in Retrier class vars to make construction super brief.
+Store good app-wide defaults in DPUT::Retrier class vars to make construction super brief.
 
     $DPUT::Retrier::trycnt = 3;
     $DPUT::Retrier::delay = 10;
     my $ok = DPUT::Retrier->new()->run(sub { get($url); });
+
+This is a valid approach when settings are universal to whole app (no variance between the calls).
+
 TODO: Allow passing max time to try.
 
 # DPUT::ToolProbe - Detect command-line tool versions
@@ -414,16 +421,23 @@ Return an hash of hashes containing:
 # DPUT::RSyncer - perform one or more copy tasks with rsync
 
 Allow sync tasks to run in series or parallell.
-TODO: Allow templating on src and dest by auto-detecting template delimiters (e.g. '{{' and '}}')
 
+## Example API use
+
+Load config, run sync and inspect results
+
+    my $tasks = jsonfile_load($opts{'config'}, "stripcomm" => qr/^\s+#.+$/);
+    my $rsyncer = DPUT::RSyncer->new($tasks, %opts)
+    $rsyncer->run();
+    # Inspect results
+    my $cnt = grep({ $_->{'rv'} != 0; } @{$rsyncer->{'tasks'}});
+    if ($cnt) { die("Some of the rsync ops failed !"); }
+    
 ## Notes on SSH
 As any modern rsync setting uses SSH as transport, it is important to know the basics of SSH before
 starting to use this. Both rsync and 'onhost' feature rely on SSH. In any kind of non-interactive
 automation setting you likely need your SSH public key copied to remote host to allow passwordless
 SSH.
-
-use Text::Template;
-use Storable;
 
 ## RSyncer->new($tasksconf, %opts);
 
@@ -433,28 +447,32 @@ Rsync Task items in $tasksconf (AoH) should have following properties:
 - title - Descriptive name for the Rsync Task (optional)
 - opts - Explicit rsync CL options starting with "-" (Implicit Default "-av")
 - excludes - An Array of Exclude patterns to serialize to command line (Optional, No defaults)
-- onhost - Run the rsync operation completely on a remote host
+- onhost - Run the rsync operation completely on a remote host (by SSH)
 
 Options in %opts:
 - title - The title/name for the whole set of rsync tasks
 - debug - Debug level (currently true/false flag) for rsync message verbosity.
 - runtype - 'series' (default) or 'parallel'
+- preitemcb - A callback to execute just before running Rsync task item.
+  - Callback receives objects for 1) single Rsync task item, 2) Rsyncer Object (and may choose to tweak / use these)
 
 Notice that currently the policy to run is "all in series" or "all in parallel" with no further
 granularity by nesting tasks into sets of parallel / in series runnable sets.
-However this limitation can be (for now) worked around on the application level by bit of
-filtering (Perl: grep()) or using multiple Rsyncer configs.
+However this limitation can be (for now) worked around on the application level for example by a
+bit of filtering (Perl: grep()) or using multiple Rsyncer configs and tuning your application logic
+to handle sequencing of series and parallel runs.
 
 
 ## $rsyncer->run()
-Currenltly no options are supported, but the operation is completely driven by the config
+
+Currently no options are supported, but the operation is completely driven by the config
 data given at construction.
 Run RSyncer tasks in series or parallel manner (as dictated by $rsyncer options at construction).
 After the run the rsync task nodes will have rsync result info written on them:
 - time - Time used for the single rsync
 - pid - Process id of the process that run the sync in 'parallel' run (series run pid will be set to 0)
 - rv  - rsync return value (man rsync to to interpret error values)
-- cmde - Underlying command that was generated to run rsync.
+- cmd - Underlying command that was generated to run rsync.
 
 ## $rst->rsync($syncer)
 
@@ -464,6 +482,7 @@ Will return results of a sync in a JSON results file with:
 - Return value (pre-shifted to a sane man-page kinda easily interpretable value)
 - time spent (s.)
 - TODO: list or number of files
+
 These results are available to application as data structure, no poking of JSON file is necessary.
 Return always 1 here and let (top level) caller detect actual rsync (or ssh, for 'ohhost') return value
 from task node 'rv' (return value).
