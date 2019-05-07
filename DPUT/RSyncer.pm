@@ -1,8 +1,19 @@
 # # DPUT::RSyncer - perform one or more copy tasks with rsync
 # 
 # Allow sync tasks to run in series or parallell.
-# TODO: Allow templating on src and dest by auto-detecting template delimiters (e.g. '{{' and '}}')
+## TODO: Allow templating on src and dest by auto-detecting template delimiters (e.g. '{{' and '}}')
 #
+# ## Example API use
+# 
+# Load config, run sync and inspect results
+# 
+#     my $tasks = jsonfile_load($opts{'config'}, "stripcomm" => qr/^\s+#.+$/);
+#     my $rsyncer = DPUT::RSyncer->new($tasks, %opts)
+#     $rsyncer->run();
+#     # Inspect results
+#     my $cnt = grep({ $_->{'rv'} != 0; } @{$rsyncer->{'tasks'}});
+#     if ($cnt) { die("Some of the rsync ops failed !"); }
+#     
 # ## Notes on SSH
 # As any modern rsync setting uses SSH as transport, it is important to know the basics of SSH before
 # starting to use this. Both rsync and 'onhost' feature rely on SSH. In any kind of non-interactive
@@ -11,8 +22,8 @@
 package DPUT::RSyncer;
 use DPUT;
 use DPUT::DataRun;
-# use Text::Template;
-# use Storable;
+## use Text::Template;
+## use Storable;
 use strict;
 use warnings;
 our $VERSION = "0.01";
@@ -20,6 +31,13 @@ our $VERSION = "0.01";
 ## Rsync default options
 our $defopts = "-av";
 our $sshopts = "";
+
+sub TO_JSON {
+  my ($h) = @_;
+  my %h2 = %$h;
+  return \%h2;
+}
+
 # ## RSyncer->new($tasksconf, %opts);
 #
 # Rsync Task items in $tasksconf (AoH) should have following properties:
@@ -28,17 +46,20 @@ our $sshopts = "";
 # - title - Descriptive name for the Rsync Task (optional)
 # - opts - Explicit rsync CL options starting with "-" (Implicit Default "-av")
 # - excludes - An Array of Exclude patterns to serialize to command line (Optional, No defaults)
-# - onhost - Run the rsync operation completely on a remote host
+# - onhost - Run the rsync operation completely on a remote host (by SSH)
 # 
 # Options in %opts:
 # - title - The title/name for the whole set of rsync tasks
 # - debug - Debug level (currently true/false flag) for rsync message verbosity.
 # - runtype - 'series' (default) or 'parallel'
+# - preitemcb - A callback to execute just before running Rsync task item.
+#   - Callback receives objects for 1) single Rsync task item, 2) Rsyncer Object (and may choose to tweak / use these)
 # 
 # Notice that currently the policy to run is "all in series" or "all in parallel" with no further
 # granularity by nesting tasks into sets of parallel / in series runnable sets.
-# However this limitation can be (for now) worked around on the application level by bit of
-# filtering (Perl: grep()) or using multiple Rsyncer configs.
+# However this limitation can be (for now) worked around on the application level for example by a
+# bit of filtering (Perl: grep()) or using multiple Rsyncer configs and tuning your application logic
+# to handle sequencing of series and parallel runs.
 # 
 sub new {
   my ($class, $conf, %opts) = @_;
@@ -62,14 +83,15 @@ sub new {
 }
 
 # ## $rsyncer->run()
-# Currenltly no options are supported, but the operation is completely driven by the config
+#
+# Currently no options are supported, but the operation is completely driven by the config
 # data given at construction.
 # Run RSyncer tasks in series or parallel manner (as dictated by $rsyncer options at construction).
 # After the run the rsync task nodes will have rsync result info written on them:
 # - time - Time used for the single rsync
 # - pid - Process id of the process that run the sync in 'parallel' run (series run pid will be set to 0)
 # - rv  - rsync return value (man rsync to to interpret error values)
-# - cmde - Underlying command that was generated to run rsync.
+# - cmd - Underlying command that was generated to run rsync.
 sub run {
   my ($rsyncer) = @_;
   my $res;
@@ -117,8 +139,9 @@ sub run {
     $drun->run_series($tasks); # Already calls $ccb
     $res = $drun->{'res'}; # Assigns empty: {}
   }
-  my $dt = time() - $t1;
-  $debug && print(STDERR "All $cnt tasks Ran in parent(PID:$$) in $dt secs\n");
+  OLD:my $dt0 = time() - $t1;
+  my $dt = $rsyncer->{'dt'} = $drun->time();
+  $debug && print(STDERR "All $cnt tasks Ran in parent(PID:$$) in $dt (OLD:$dt0) secs\n");
   # Access $drun->{''}; ???
   $debug && print(STDERR "Run Res: ".Data::Dumper::Dumper($res)."\n\n");
   return $res;
@@ -170,6 +193,7 @@ sub command {
   my @exc = map({ "--exclude '$_'"; } @{$rst->{'excludes'} || []});
   my $opts = $rst->{'opts'} || '-av'; # $DPUT::RSyncer::defopts
   # my $rst2 = Storable::dclone($rst);
+  # if ($rst2->{'src'} =~ /\{\{/ && $rst2->{'src'} =~ /\}\}/ ) {} # Use templating
   my $cmd = "rsync $opts ".join(' ', @exc)." '$rst->{'src'}' '$rst->{'dest'}'";
   if (isremote($rst->{'src'}) && isremote($rst->{'dest'})) { die("Both 'src' and 'dest' are remote - can't do that !"); }
   # Run whole rsync on a remote host ?
@@ -191,6 +215,7 @@ sub command {
 # - Return value (pre-shifted to a sane man-page kinda easily interpretable value)
 # - time spent (s.)
 # - TODO: list or number of files
+#
 # These results are available to application as data structure, no poking of JSON file is necessary.
 # Return always 1 here and let (top level) caller detect actual rsync (or ssh, for 'ohhost') return value
 # from task node 'rv' (return value).
@@ -199,9 +224,12 @@ sub rsync {
   my $debug = $rsyncer->{'debug'};
   ######  ##################
   my $cmd = $rst->command($rsyncer);
-  $debug && print(STDERR "Running $rst->{'title'}: $cmd\n");
+  #$debug && print(STDERR "Running $rst->{'title'}: $cmd\n");
+  my $cb = $rsyncer->{'preitemcb'};
+  if (ref($cb) eq 'CODE') { $cb->($rst, $rsyncer); }
   ###### Run ######
   my $t1 = time();
+  # TODO: Provide multiple execution styles: system, backticks, pipe ?
   my $out = `$cmd`;
   #system($cmd);
   my $dt = time() - $t1;
