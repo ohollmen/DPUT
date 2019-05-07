@@ -68,6 +68,7 @@ sub run_series {
   my $cb = $drun->{'cb'};
   my $ccb = $drun->{'ccb'};
   my $res = {};
+  $drun->{'st'} = time();
   # NOTE: If $ccb uses 
   for my $reltar (@$tars) {
     my $ret = $cb->($reltar);
@@ -75,6 +76,7 @@ sub run_series {
     # NOTE: $res for parallell run is an index by PID, which does not make sense for series run.
     $ccb && $ccb->($reltar, $res, 0);
   }
+  $drun->{'dt'} = time() - $drun->{'st'};
   $drun->{'res'} = $res;
   return $drun;
 }
@@ -113,6 +115,7 @@ sub run_parallel {
   # Maintain a mapping from child PID to data
   my $pididx = {};
   my $procs = $drun->{'numproc'} = 0;
+  $drun->{'st'} = time();
   for my $reltar (@$tars) {
     my $pid = fork();
     if ( ! defined($pid)) { warn("Could not fork\n"); next; }
@@ -164,6 +167,7 @@ sub runwait {
     # - $res - result object to fill out for collecting individual results
     if ($ccb) { $ccb->($item, $res, $pid); }
   }
+  $drun->{'dt'} = time() - $drun->{'st'};
   $drun->{'res'} = $res;
   #return $numproc; # Still in object after this call
   #return $drun;
@@ -181,4 +185,13 @@ sub run_forked_single {
   if ($drun->{'autowait'}) { return $drun->runwait(); }
   return $drun;
 }
+
+sub time {
+  my ($drun) = @_;
+  return $drun->{'dt'} || 0;
+}
+
+# ## TODO
+# Create a simple event mechanism with onstart/onend events where processing can be done or things can be recorded
+# (e.g. init / cleanup, calcing duration ...)
 1;
