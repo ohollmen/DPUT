@@ -21,9 +21,9 @@
 # SSH.
 package DPUT::RSyncer;
 use DPUT;
-use DPUT::DataRun;
+use DPUT::DataRun; # Enable running in parallel
 ## use Text::Template;
-## use Storable;
+use Storable;
 use strict;
 use warnings;
 our $VERSION = "0.01";
@@ -38,7 +38,7 @@ sub TO_JSON {
   return \%h2;
 }
 
-# ## RSyncer->new($tasksconf, %opts);
+# ## DPUT::RSyncer->new($tasksconf, %opts);
 #
 # Rsync Task items in $tasksconf (AoH) should have following properties:
 # - src - Rsync source (mandatory, per rsync CL conventions)
@@ -61,14 +61,30 @@ sub TO_JSON {
 # bit of filtering (Perl: grep()) or using multiple Rsyncer configs and tuning your application logic
 # to handle sequencing of series and parallel runs.
 # 
+## ### Passing options from config
+## The basic use case of RSyncer is as as given above. However, the $tasksconf may be also be passed as an Hash Object
+## with member 'tasks' in which case:
+## - The object contains %opts in its key value
+## - The $tasksconf->{'tasks'} contains the array of tasks that will be passed normally passed as $tasksconf.
+## 
+## Thus the 2 constructions below would be equivalent:
+## 
 sub new {
   my ($class, $conf, %opts) = @_;
   my $rsyncer = {"title" => "Another Rsync", "runtype" => "series", "tasks" => []};
   my $attrs = ["title","runtype","debug", "seq"]; # Attrs to inherit / override from top level config
   map({ $rsyncer->{$_} = $opts{$_}; } @$attrs);
   my $ref = ref($conf);
-  if ($ref ne 'ARRAY') { die("Need Config as ARRAY"); }
   my $tasks = $conf;
+  if ($ref ne 'ARRAY') { die("Need Config as ARRAY"); }
+  # Hash/Object passed, look for "tasks" AND
+  # override %opts
+  if ($ref eq 'HASH') {
+    if (!$conf->{'tasks'}) { die("Object pass as config, but no 'tasks' found !"); }
+    #$tasks = $conf->{'tasks'};
+    map({ $rsyncer->{$_} = $conf->{$_}; } @$attrs); # Override !
+  }
+  
   $rsyncer->{'tasks'} = $tasks;
   # Validate All task nodes
   map({if (ref($_) ne 'HASH') { die("Task node is not an HASH/Object"); } } @$tasks);
@@ -115,24 +131,29 @@ sub run {
     $debug && print(STDERR "Completed(proc:$pid): ".Data::Dumper::Dumper($it)."\n");
     if (!$pid) { return; } # Index by seq, not ID ?
     # Load info from PID named file and copy to original node OR $res ?
-    my $rsinfo = jsonfile_load("/tmp/rsync.$pid.json");
+    my $fname = "/tmp/rsync.$pid.json";
+    my $rsinfo = jsonfile_load($fname);
+    unlink($fname); # Ever reason to keep this ?
     #TEST: $res->{$pid} = $pid;
     $res->{$pid} = $rsinfo;
   };
   my $dropts = {
     'autowait' => 0,
     'ccb' => $ccb,
-    'debug' => 1,
+    'debug' => 0,
   };
+  if ($rsyncer->{'debug'} > 1) {$dropts->{'debug'} = 1; }
   my $drun = DPUT::DataRun->new($cb, $dropts);
   
   $debug && print(STDERR "Created drun: $drun.\nStarting run $cnt tasks in '$rt'\n");
+  # TODO: Pre-Op
+  
   my $t1 = time();
   if ($rt eq 'parallel') {
     $drun->run_parallel($tasks);
     $debug && print(STDERR "Start wait for $cnt tasks ...\n");
     $res = $drun->runwait(); # Only on parallel
-    # Map child result info back to items
+    # Map child result info back to RSTask items
     mapresults($tasks, $res);
   }
   else {
@@ -146,6 +167,21 @@ sub run {
   $debug && print(STDERR "Run Res: ".Data::Dumper::Dumper($res)."\n\n");
   return $res;
 }
+
+## Run eventop (pre/post) during rsync.
+## Exceptions are not caught during run of the op.
+## Callback gets RSyncer instance as parameter.
+## Return values are interpreted as $ok values (true means success)
+sub runeventop {
+  my ($rsyncer, $type) = @_;
+  my $cb = $rsyncer->{$type};
+  my $ok = 0;
+  if (ref($cb) eq 'CODE') { $ok = $cb->($rsyncer); }
+  if ($ok) { return; }
+  
+  #return $ok;
+}
+
 ## ## mapresults($tasks, $res);
 ## Internal utility method to map results back to Rsync task nodes.
 ## Mreges result attributes to task nodes by correlating them by 'seq' (sequence order number).
@@ -179,11 +215,44 @@ sub isvalid {
   return 1;
 }
 ## Detect if Rsync Task has hostname to consider it remote.
+## With $opts{'parse'} - parse 'user' and 'host' and return a hash object (ref)
+## with respective member names. This can be (e.g.) used for checking user details or host availability.
 sub isremote {
-  my ($str) = @_;
-  if ($str =~ /\:/) { return 1; }
+  my ($str, %opts) = @_;
+  if ($str =~ /\:/) {
+    if ($opts{'parse'}) { my ($u, $h) = split(/:/, $str, 2); return {'user' => $u, 'host' => $h}; }
+    return 1;
+  }
   return(0);
 }
+
+## Detect template delimiters within a hash / object member to see if we need to do template expansion
+sub needtemplating {
+  my ($o, $at) = @_;
+  if ($o->{$at} =~ /\{\{/ && $o->{$at} =~ /\}\}/) { return 1; }
+  return 0;
+}
+## Run optional templating on some of the config attributes.
+## Detects need for templating and runs it if needed.
+## Parameters for templating are gotten from $rsyncer ('params')
+sub runtemplating {
+  my ($o, $rst, $syncer) = @_;
+  my @ats = ('src','dest'); # Attrs needing templating
+  my $p = $syncer->{'params'};
+  for my $at (@ats) {
+    my $tstr = $o->{$at};
+    if (needtemplating($o, $at)) { $o->{$at} = templated($tstr, $p); }
+  }
+  
+}
+# Run templating on string $tstr with parameters from $p.
+# Return expanded content.
+sub templated {
+  my ($tstr, $p) = @_;
+  my $template = Text::Template->new(TYPE => 'STRING', SOURCE => $tstr );
+  return $template->fill_in(HASH => $p);
+}
+
 ## ## $rst->command($rsyncer)
 ## Formulate the rsync command, complete with options, excludes, src and dest.
 ## src and dest will be single quoted to be safe for shell (currently no excaping is done).
@@ -192,8 +261,12 @@ sub command {
   my ($rst, $rsyncer) = @_;
   my @exc = map({ "--exclude '$_'"; } @{$rst->{'excludes'} || []});
   my $opts = $rst->{'opts'} || '-av'; # $DPUT::RSyncer::defopts
-  # my $rst2 = Storable::dclone($rst);
-  # if ($rst2->{'src'} =~ /\{\{/ && $rst2->{'src'} =~ /\}\}/ ) {} # Use templating
+  my $rst2 = Storable::dclone($rst);
+  # TODO: Use templating (finish templating need detection and overall support)
+  my @tmplattrs = ();
+  #OLD:if ( ) { $rst2->{'src'} = ""; }
+  #OLD:if ($rst2->{'dest'} =~ /\{\{/ && $rst2->{'dest'} =~ /\}\}/ ) { $rst2->{'dest'} = ""; }
+  # TODO: $rst->runtemplating($rst2, $rsyncer); # TODO: Check parameters - do we need $rst2 ?
   my $cmd = "rsync $opts ".join(' ', @exc)." '$rst->{'src'}' '$rst->{'dest'}'";
   if (isremote($rst->{'src'}) && isremote($rst->{'dest'})) { die("Both 'src' and 'dest' are remote - can't do that !"); }
   # Run whole rsync on a remote host ?

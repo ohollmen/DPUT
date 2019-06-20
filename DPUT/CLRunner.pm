@@ -9,10 +9,27 @@ our $VERSION = "0.0.1";
 our $runneropts_g = {
 
 };
-# # CLRunner - Design command line apps and interfaces with ease.
+# # DPUT::CLRunner - Design command line apps and interfaces with ease.
+# 
+# CLRunner bases all its functionality on Getopt::Long, but makes the usage declarative.
+# It also strongly supports the modern convention of using sub-commands for cl commands
+# (E.g. git clone, git checkout or apt-get install, apt-get purge).
+#
+# ## Usage
+# my $optmeta = ["",""];
+# my $runneropts = {};
+# sub greet {}
+# sub delegate {}
+# $clrunner = DPUT::CLRunner->new($optmeta, $runneropts);
+# $clrunner->ops({'greet' => \&greet, '' => \&delegate});
+# 
 # 
 # ## $clrunner = DPUT::CLRunner->new($optmeta, $runneropts)
 # Missing 'ops' means that subcommands are not supported by this utility and this instance.
+# Options in %$runneropts
+# - ops - Ops dispatch (callback) table
+# - op- Single op callback (Mutually exclusive with ops, only one must be passed)
+# - debug - Produce verbose output
 ## NOT: Allow validate CB. "defop"
 sub new {
   my ($class, $optmeta, $runneropts) = @_;
@@ -27,12 +44,16 @@ sub new {
     if (ref($clr->{'op'}) ne 'CODE') { die("Single-Op is not given as CODE(ref)");}
     $clr->{'ops'}->{'op1'} = $clr->{'op'};
   }
+  # 'op' has been converted to 'ops' by now (see above)
   delete($clr->{'op'});
   bless($clr, $class);
   return($clr);
 }
 # ## $clrunner->ops($ops)
-# Explicit method to set operations (sub command dispatch table).
+# Explicit method to set operations (sub command dispatch table). Operations dispatch table is passed in $ops (hash ref),
+# where each operation keyword / label (usually a impertaive / verb form word e.g. "search") maps to a function with call signature:
+# 
+#     $cb->($opts); # Options passed to run() method. %$opts should be a hash object that callback can handle.
 # Options:
 # - 'merge' - When set to true value, the new $ops will be merged with possible existing values (in overriding manner)
 sub ops {
@@ -50,7 +71,12 @@ sub ops {
 sub optmeta {
   my ($clr) = @_;
 }
-
+## Pass  a hash object of CL parameter descriptions and generate Help text.
+## 
+sub genhelp {
+  my ($clr, $descriptions) = @_;
+  
+}
 ## Internal method to Extract operation from pre-validated ops (hashref)
 sub operation {
   my ($clr, $ops) = @_; 
@@ -67,16 +93,18 @@ sub operation {
 sub isuniop {
   my ($ops) = @_;
   if (!$ops) { return undef; }
-  if (ref($ops) ne 'HASH') { return undef; } # Test HASH. Die !
+  if (ref($ops) ne 'HASH') { return undef; } # Test HASH. SHould Die !
   my @keys = keys(%$ops);
   if (scalar(@keys) == 1) { return $keys[0]; }
   return undef;
 }
 
 # ## $clrunner->run($opts)
-# Run application in ops mode or single-op mode. This will be auto-detected.
+# Run application in ops mode (supporting CL sub-commands) or single-op mode (no subcommands).
+# This mode will be auto-detected.
 # Options:
-# 'exit' - Auto exit after dispatching operation.
+# - 'exit' - Auto exit after dispatching operation.
+#
 # Return instance for method chaining.
 sub run {
   my ($clr, $opts) = @_; # , $runneropts
@@ -87,7 +115,7 @@ sub run {
   $opts = $opts || {};
   # TODO: Make subcommand optional (for legacy apps) by ... (?)
   my $ops = $clr->{'ops'};
-  my $op = isuniop($ops); # Allow single op mode
+  my $op = isuniop($ops); # Allow single op mode (No CL subcommand)
   if (!$op) {$op = $ops ? shift(@ARGV) : undef; } # Extract subcommand
   if (!$op) { die("run(): Nothing to run() (No op resolved from $ops)");}
   my $opcb;
@@ -99,7 +127,9 @@ sub run {
     if (!$opcb) { die("No CL op '$op'\nTry one of:\n".join("\n", map({" - $_";} keys(%$ops))));}
   }
   ################ Run ################
+  # Will merge / override
   GetOptions($opts, @$optmeta);
+  # Only exec if ops exist, Otherwise plainly have options parsed by Getopt::Long
   if ($ops) {
     $opts->{'op'} = $op;
     # TODO: eval {}

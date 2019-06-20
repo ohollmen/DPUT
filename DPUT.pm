@@ -231,3 +231,182 @@ sub isotime {
      $t[5]+1900, $t[4]+1, $t[3], $t[2], $t[1], $t[0],
     );
 }
+#################################### TABULAR FILES: CSV, XLSX ################################################
+## # Tabular files processing (CSV, XLSX)
+## 
+## Create easily/natively processable AoH Objects out of popular data formats.
+## DPUT couples you to neither of the modules Test::CSV or Spreadsheet::XLSX but they must be loaded by app
+## (see examples below).
+## Only their *methods* will be called in here (with late binding).
+## For the column headers for these tabular files (first valid line of the table) there are typically 3 scenarios:
+## - The first line contains headers and headers are usable as-is - no need to use 'cols' parameter
+## - File content has NO headers and columns must be named by API caller - use `'cols' => [...]` to name columns
+## - The first line contains headers, but they are NOT usable as-is (e.g. they have spaces, are too long or
+##   there's some other annoyance about them) - use `'cols' => [...]` to name columns *AND* use `'striphdr' => 1` to
+##   eliminate headers from data.
+
+# ## DPUT::csv_to_data($csv, $fh, %opts);
+# Extract data from CSV file by passing Text::CSV processor instance and filehandle (or filename) to load data from.
+# Options:
+# - cols - Pass explicit column names, do not extract column names from sheet (or map to new names)
+# - striphdr - Strip first entity extracted when explicit column names ('cols') are passed
+# Example CSV extraction scenario:
+# 
+#     use Text::CSV; 
+#     my $csv = Text::CSV->new({binary => 1});
+#     if (!$csv) { die("No Text::CSV processor instance"); }
+#     my $ok = open(my $fh, "<", "animals.csv");
+#     my $arr = DPUT::csv_to_data($csv, $fh, 'cols' => undef);
+#     print(Dumper($arr));
+sub csv_to_data {
+  my ($csv, $fh, %opts) = @_;
+  if (!$csv) { die("No Text::CSV instance passed !"); }
+  if (!$fh) { die("No open file handle (or name) passed !"); }
+  # $fh seems to be a filename ...
+  my $fh2;
+  if (!ref($fh)) { open($fh2, '<', $fh) || die("File '$fh' not opened"); $fh = $fh2; }
+  my $cols = $opts{'cols'};
+  my $i=0;
+  if (!$cols) {
+    $cols = $csv->getline($fh);
+    $i++;
+    # Validate as cols ?
+  }
+  if (!$cols) { die("No columns to transform to AoH"); }
+  if (ref($cols) ne 'ARRAY') { die("Columns not in ARRAY !"); }
+  my @arr = ();
+  my $vcb = $opts{'validcb'};
+  while (my $row = $csv->getline($fh)) {
+    my %h = ();
+    my ($hc,$vc)= (scalar(@$cols), scalar(@$row));
+    if (scalar(@$cols) != scalar(@$row)) { die("Mismatch in col counts (hdr:$hc, row:$vc)- on row $i check your CSV content!"); } # Strict col count matching !
+    @h{@$cols} = @$row;
+    if ($vcb && !$vcb->(\%h) ) { next; }
+    push(@arr, \%h);
+    $i++;
+  }
+  if ($fh2) { close($fh2); }
+  if ($opts{'striphdr'}) { shift(@arr); }
+  if (!$opts{'fullinfo'}) { return(\@arr); }
+  return {'data' => \@arr, 'cols' => $cols};
+}
+# ## DPUT::sheet_to_data($xlsx_sheet, %opts);
+# Extract data from XLSX to Array of Hashes for processing
+# The data is passed as single Spreadsheet::ParseExcel::Worksheet sheet object.
+# Options:
+# - debug - Turn on verbose messages
+# - cols - Pass explicit column names, do not extract column names from sheet (see also: striphdr)
+# - striphdr - Strip first entity extracted when explicit column names ('cols') are passed
+# Example CSV extraction scenario:
+#
+#     my $converter = Text::Iconv->new ("utf-8", "windows-1251");
+#     my $excel = Spreadsheet::XLSX->new("animals.xlsx", $converter);
+#     my $sheet = $excel->{Worksheet}->[0]; # Choose first sheet
+#     my %xopts = ('debug' => 1, 'fullinfo' => 1);
+#     $aoh = DPUT::sheet_to_data($sheet, %xopts);
+#     print(Dumper($aoh));
+#
+# Return Array of Objects contained in the sheet processed.
+sub sheet_to_data {
+  my ($sheet, %opts) = @_;
+  my @aoo = ();
+  if (!$sheet) { die("No XLSX Sheet passed"); }
+  $opts{'debug'} && print("Got sheet: $sheet\n");
+  # my @cols = ();
+  my ($minc, $maxc) = ($sheet->{MinCol}, $sheet->{MaxCol});
+  my $cols = $opts{'cols'};
+  my $startrow = $sheet->{MinRow};
+  # Header cols not given - extract them
+  if (!$cols) {
+    @$cols = map({ $sheet->{Cells}->[$startrow]->[$_]->{'Val'}; } ($minc .. $maxc));
+    $startrow++;
+  }
+  foreach my $row ($startrow .. $sheet->{MaxRow}) {    
+    $sheet->{MaxCol} ||= $sheet->{MinCol};
+    my %e = ();
+    foreach my $col ($sheet->{MinCol} ..  $sheet->{MaxCol}) {
+      my $cell = $sheet->{Cells}->[$row]->[$col];
+      my $colname = $cols->[$col];
+      $e{$colname} = $cell->{'Val'};
+    }
+    push(@aoo, \%e);
+  }
+  if ($opts{'striphdr'}) { shift(@aoo); }
+  if (!$opts{'fullinfo'}) { return \@aoo; }
+  return {'data' => \@aoo, 'cols' => $cols};
+}
+# ## $creds = netrc_creds($hostname);
+# Extract credentials (username and password) for a hostname.
+# The triplet of hostname, username and password will be returned as an object with:
+#      {
+#        "host" => "the-server-host.com:8080",
+#        "user" => "jsmith",
+#        "pass" => "J0hNN7b07"
+#       }
+# Return a complete host + credentials object (as seen above) - that is hopefully usable
+# for establishing connection to the remote sever (e.g. HTTP+REST, MySQL, MongoDB, LDAP, ...)
+sub netrc_creds {
+  my ($hostname, %opts) = @_;
+  my @locs = ("$ENV{HOME}/.netrc", "$ENV{HOMEDRIVE}$ENV{HOMEPATH}.netrc");
+  my @locs2 = grep({ -f $_; } @locs);
+  if (!@locs2) { die("netrc_creds(): No .netrc found (from @locs)"); }
+  my $ok = open(my $fh, "<", $locs2[0]);
+  if (!$ok) { die("Could not open file"); }
+  my @lines = <$fh>;
+  close($fh);
+  chomp(@lines);
+  if ($opts{'debug'}) { print(Dumper(\@lines)); }
+  # my $re = qr/^machine\s+$hostname\s+login\s+(\S*)\s+password\s+(\S*)$/;
+  my $re = qr/^machine\s+$hostname\b/;
+  @lines = grep({ /$re/; } @lines);
+  my $cnt = scalar(@lines);
+  if (!$cnt)    { die("No credentials found for '$hostname'"); }
+  if ($cnt > 1) { die("Multiple Credentials ($cnt) found for '$hostname'"); }
+  my $creds = {'host' => $hostname, "user" => '', "pass" => ''};
+  if ($lines[0] =~ /\blogin\s+(\S+)/)    { $creds->{'user'} = $1; }
+  if ($lines[0] =~ /\bpassword\s+(\S+)/) { $creds->{'pass'} = $1; }
+  return $creds;
+}
+
+#################################################################################################
+# DPUT::filetree_filter_by_stat($dirpath, $filtercb, %opts);
+# Collect a list of ("filtered-in") files from a directory tree based on stat results.
+# Creates a list of filenames that filter callback indicates as "matching".
+# Caller should pass:
+# - $dirpath - Path to look for files
+# - $filtercb - Callback returning true (to include) / false (to exclude) values like a normal filter function fashion.
+#    Filter callback receives stat array (as reference) and absolute filename of current file as parameters.
+# - %opts Processing options
+#   - useret - Place return value of callback to file list generated (instead of default, which is filename)
+# Using 'useret' means that filtercb function is written so that it returns a custom values that will be placed in results.
+# Return list of filenames or custom callback generated objects / items.
+sub filetree_filter_by_stat {
+  if (!$File::Find::VERSION) { eval("use File::Find"); }
+  my ($path, $filtercb, %opts) = @_;
+  if (!-d $path) { die("path param must be an existing directory !"); }
+  if (ref($filtercb) ne 'CODE') { die("No callback as CODE (ref)"); }
+  my @files = ();
+  my $localcb = sub {
+    my $an = $File::Find::name;
+    my @s = stat($an);
+    # TODO: Check if dir and not accessible. Otherwise File::Find
+    # Permission denied warning in STDOUT. Processing here does not seen to help.
+    # if ((-d $an) && (!-r $an) && (!-x $an)) { return 0; }
+    my $rv = $filtercb->(\@s, $an);
+    if ($rv) {
+      if ($opts{'useret'}) { push(@files, $rv); }
+      else { push(@files, $an); }
+    }
+  };
+  File::Find::find({ 'wanted' => $localcb, 'follow' => 0, 'no_chdir' => 1}, $path);
+  return \@files;
+}
+
+## Plan for extracting a "processing context" with
+## - hostname (by Sys::Hostname)
+## - DNS domain
+sub procctx {
+  
+}
+
+1;
