@@ -279,7 +279,12 @@ sub csv_to_data {
   while (my $row = $csv->getline($fh)) {
     my %h = ();
     my ($hc,$vc)= (scalar(@$cols), scalar(@$row));
-    if (scalar(@$cols) != scalar(@$row)) { die("Mismatch in col counts (hdr:$hc, row:$vc)- on row $i check your CSV content!"); } # Strict col count matching !
+    if ($hc != $vc) {
+      #print(Dumper($row)); # Usually ['']
+      # The check below has shown to be excessively strict.
+      #die("Mismatch in col counts (hdr:$hc, row vals:$vc)- on row $i check your CSV content!"); # Strict col count matching !
+      last; # Quit at first non-matching row. Usually this is the correct thing to do and safe in any case.
+    }
     @h{@$cols} = @$row;
     if ($vcb && !$vcb->(\%h) ) { next; }
     push(@arr, \%h);
@@ -335,7 +340,7 @@ sub sheet_to_data {
   if (!$opts{'fullinfo'}) { return \@aoo; }
   return {'data' => \@aoo, 'cols' => $cols};
 }
-# ## $creds = netrc_creds($hostname);
+# ## $creds = netrc_creds($hostname, %opts);
 # Extract credentials (username and password) for a hostname.
 # The triplet of hostname, username and password will be returned as an object with:
 #      {
@@ -343,6 +348,8 @@ sub sheet_to_data {
 #        "user" => "jsmith",
 #        "pass" => "J0hNN7b07"
 #       }
+# Options in %opts:
+# - debug - Create dumps for dev time debugging (Note: this will potentially show secure data in logs)
 # Return a complete host + credentials object (as seen above) - that is hopefully usable
 # for establishing connection to the remote sever (e.g. HTTP+REST, MySQL, MongoDB, LDAP, ...)
 sub netrc_creds {
