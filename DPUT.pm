@@ -410,10 +410,72 @@ sub filetree_filter_by_stat {
 }
 
 ## Plan for extracting a "processing context" with
-## - hostname (by Sys::Hostname)
-## - DNS domain
+## - hostname - Fully qualified hostname (by Net::Domain)
+## - dnsdomain - DNS domain
+## - exe - Executable name (or basename ?)
+## - pid - Process id - Process id of the current process
+## - time Time when processing context was extracted - usually at the start of execution
+##    usable for reflecting the start of processing (e.g. for later calculating how long processing has run)
+## Options:
+## - env - Inclusion of env - copy => make a copy of environment, none => No 'env' variable map at all
+## - nis - Include nis domain info (Must have Net::NIS)
+## The runtime of interpreter has already info most of these things, 
+## TODO:Provide also a blessed version with methods.
+## TODO: Move to DPUT::ProcCtx
+## TODO: Create is_win() wrapper for detecting windows run
+## TODO: Provide sub TO_JSON {} to serialize blessed to JSON
+## TODO: Possibly env=none, env=copy
+## See also: Net::Domain, Sys::Hostname, Net::NIS, https://perldoc.perl.org/perlvar.html
 sub procctx {
-  
+  my (%opts) = @_;
+  #if (!%opts) { $opts = (); }
+  eval "use Net::Domain;use Storable;";
+  my $pc = {
+    'pid' => $$, # Process ID
+    'exe' => $0, # Optionally basename or relative to ... ?
+    #'hostname' => Sys::Hostname::hostname(),
+    'hostname' => Net::Domain::hostfqdn(), # Full
+    'dnsdomain' => Net::Domain::hostdomain(),
+    'uid' => $<,
+    'gid' => $(,
+    'env' => (($opts{'env'} eq 'copy') ? Storable::dclone(\%ENV) : \%ENV),
+    'osname' => $^O,
+    # 'ver' => $^V, ## Non-portable - 5.10.0 changes string to object
+  };
+  if ($opts{'env'} eq 'none') { delete($pc->{'env'}); }
+  if ($opts{'nis'}) { $pc->{'nisdomain'} = Net::NIS::yp_get_default_domain(); }
+  return $pc;
 }
 
+## DPUT::named_parse($re, $str, $names);
+## 
+## Parse captures in regexp into an hash / object key-value pairs by:
+## - $re - Regexp with capturing parenthesis - number of which should match number of names
+## - $str - String to parse from
+## - $names - array(ref) of names to use as keys of object
+##
+## Example:
+##     my $re = qr/v?(\d+)\.(\d+)\.(\d+).*/;
+##     my $verstr = "v2.6.7-patch87";
+##     my $v = DPUT::named_parse($re, $verstr, ['major','minor','patch']);
+##     if (!$v) { die("Could not extract version"); }
+##     print(Dumper($v)); # 
+## 
+## TODO: Config option for starting at $0
+## TODO: Allow multiline ?
+sub named_parse {
+  my ($re, $str, $names) = @_;
+  if (!$re) { die("No regexp"); }
+  if (!$names) { die("Missing names (to use as keys)!"); }
+  if (ref($names) ne 'ARRAY') { die("names (to use as keys) not in Array"); }
+  if ($str =~ /$re/mg) {
+    my $vals = [$1, $2, $3, $4, $5, $6, $7, $8, $9];
+    #if ($opts{'capall'}) { push(@$vals, $0); }
+    my $o = {};
+    my $cnt = scalar(@$names);
+    for (my $i = 0;$i < $cnt;$i++) { $o->{$names->[$i]} = $vals->[$i]; }
+    return $o;
+  }
+  return undef;
+}
 1;

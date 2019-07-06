@@ -108,8 +108,9 @@ sub new {
 # - pid - Process id of the process that run the sync in 'parallel' run (series run pid will be set to 0)
 # - rv  - rsync return value (man rsync to to interpret error values)
 # - cmd - Underlying command that was generated to run rsync.
+# Return 
 sub run {
-  my ($rsyncer) = @_;
+  my ($rsyncer, %opts) = @_;
   my $res;
   my $debug = $rsyncer->{'debug'};
   my %oktypes = (
@@ -122,6 +123,14 @@ sub run {
   
   my $cnt = scalar(@$tasks);
   if (!$cnt) { die("No RSync Tasks for RSyncer"); }
+  ## NEW: Commands only
+  if ($opts{'cmds'}) {
+    for my $t (@$tasks) {
+      my $cmd = $t->command();
+      print("$cmd\n");
+    }
+    return {}; # Dummy
+  }
   # DONOT: Local optimization for single (run and return): if ($cnt == 1) { $tasks->[0]->rsync(); }
   # Callback for running single task.
   my $cb = sub { my ($rst) = @_; $rst->rsync($rsyncer); };

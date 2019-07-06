@@ -3,6 +3,8 @@
 # App is very much data driven by config.
 # Example of running:
 #     ./rsyncer.pl --config myrsyncproject.json --runtype series
+#     # Output commands only (for semi-automation or generating shell script)
+#     ./rsyncer --config /path/to/myrsyncproject.json --cmds
 use lib (".");
 use lib ("..");
 use strict;
@@ -16,7 +18,7 @@ use Sys::Hostname;
 
 # Prepare local rsync test files
 preptestfiles();
-my @optsmeta = ('runtype=s','debug','nodebug','prof=s', 'config=s');
+my @optsmeta = ('runtype=s','debug','nodebug','prof=s', 'config=s', 'cmds');
 # print("loaded DPUT::RSyncer $DPUT::RSyncer::VERSION\n\n");
 
 
@@ -24,7 +26,9 @@ my @optsmeta = ('runtype=s','debug','nodebug','prof=s', 'config=s');
 # config from a file with perl array-ref by:
 # my $tasks = require("./copies.pl");
 my %opts = ('runtype' => 'parallel', 'debug' => 1, 'config' => './rsync.conf.json',
-  'preitemcb' => sub {my ($rst) = @_; print("Syncing: '$rst->{'title'}'\n"); }); # 'seq' => 1, 'runtype' => 'series' / 'parallel'
+  'preitemcb' => sub {my ($rst) = @_; print("Syncing: '$rst->{'title'}'\n"); },
+  'cmds' => 0,
+  ); # 'seq' => 1, 'runtype' => 'series' / 'parallel'
 GetOptions(\%opts, @optsmeta);
 if ($ENV{'RSYNCER_DEBUG'}) { $opts{'debug'} = 0; }
 if ($opts{'nodebug'}) { $opts{'debug'} = 0; }
@@ -35,9 +39,10 @@ my $tasks = jsonfile_load($opts{'config'}); # "stripcomm" => qr/^\s+#.+$/  '^\\s
 # Example of getting a set of rsync task nodes as a group.
 # if ($opts{'prof'}) { @$tasks = grep({ $_->{'lbl'} eq $opts{'prof'}; } @$tasks); } # filter correct task nodes
 # Construct and run
+my %ropts = ('cmds' => $opts{'cmds'});
 my $rsyncer = DPUT::RSyncer->new($tasks, %opts);
-my $res = $rsyncer->run();
-
+my $res = $rsyncer->run(%ropts);
+if ($ropts{'cmds'}) { exit(0); }
 #print("rsyncer.pl: ".Dumper($res));
 #jsonfile_write('-', $res);
 jsonfile_write('-', $rsyncer); # ->{'tasks'}
