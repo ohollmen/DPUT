@@ -388,7 +388,7 @@ sub netrc_creds {
 # Using 'useret' means that filtercb function is written so that it returns a custom values that will be placed in results.
 # Return list of filenames or custom callback generated objects / items.
 sub filetree_filter_by_stat {
-  if (!$File::Find::VERSION) { eval("use File::Find"); }
+  if (!$File::Find::VERSION) { eval("use File::Find;"); }
   my ($path, $filtercb, %opts) = @_;
   if (!-d $path) { die("path param must be an existing directory !"); }
   if (ref($filtercb) ne 'CODE') { die("No callback as CODE (ref)"); }
@@ -397,7 +397,7 @@ sub filetree_filter_by_stat {
     my $an = $File::Find::name;
     my @s = stat($an);
     # TODO: Check if dir and not accessible. Otherwise File::Find
-    # Permission denied warning in STDOUT. Processing here does not seen to help.
+    # Permission denied warning in STDOUT. Processing here does not seem to help.
     # if ((-d $an) && (!-r $an) && (!-x $an)) { return 0; }
     my $rv = $filtercb->(\@s, $an);
     if ($rv) {
