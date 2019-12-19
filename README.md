@@ -593,8 +593,6 @@ from task node 'rv' (return value).
 
 # DPUT::DockerRunner - Run docker in automated context with preconfigured options
 
-Allow changing docker binary, e.g. $DPUT::DockerRunner::dockerbin = 'docker-b22';
-
 ## DPUT::DockerRunner->new('img' => 'myimage', 'cmd' => 'compute.sh');
 
 Create new docker runner with options to run docker.
@@ -630,19 +628,21 @@ Volume mappings are passed (simply in array, not hash object) in a docker-famili
 
 ### Example of running
 Terse use case with params set and run executed on-the-fly:
-    my $rc = DPUT::DockerRunner->new('img' => 'myimage', 'cmd' => 'compute.sh')->run();
+
+     my $rc = DPUT::DockerRunner->new('img' => 'myimage', 'cmd' => 'compute.sh')->run();
 More granular config passed and (only) command is generated:
-    my $dcfg = {
-      "img" => "ubuntu",
-      "cmd" => "ls /usr",
-      "vols" => ["/tmp","/usr", "/placeone:/anotherplace"],
-      "asuser" => "mrsmith",
-      #"mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
-    };
-    # Create Docker runner
-    my $docker = DPUT::DockerRunner->new(%$dcfg);
-    my $cmd = $docker->run('cmdstring' => 1);
-    print("Generated command: '$cmd'\n");
+
+     my $dcfg = {
+       "img" => "ubuntu",
+       "cmd" => "ls /usr",
+       "vols" => ["/tmp","/usr", "/placeone:/anotherplace"],
+       "asuser" => "mrsmith",
+       #"mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
+     };
+     # Create Docker runner
+     my $docker = DPUT::DockerRunner->new(%$dcfg);
+     my $cmd = $docker->run('cmdstring' => 1);
+     print("Generated command: '$cmd'\n");
 
 
 Wrapper for Getting an account
@@ -659,6 +659,8 @@ inside the docker container.
 ## $docker->run(%opts); 
 Run Docker with preconfigured params or *only* return docker run command (string) for more "manual" run.
 Options in opts:
+
 - cmdstring - Trigger return of command string only *without* actually running container
+
 Return either docker command string (w. option cmdstring) or return code of actual docker run.
 
