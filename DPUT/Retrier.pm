@@ -8,8 +8,10 @@
 # ## Signaling results from single try callback
 #
 # The return value from the callback of `...->run($cb)` is - for most
-# flexibility - tested with a callback. While this initially seems inconvenient,
-# the module provides 2 internal functions to handle 90%-95% of cases:
+# flexibility - tested with a callback. The callback name 'badret' refers to
+# "bad return value", encountering of which triggers a retry.
+# While this initially seems inconvenient,the module provides 2 internal functions
+# to handle 90%-95% of cases:
 
 # - badret_perl - Interprets "Perl style" $ok return value as success
 # - badret_cli - Interprets success with a shell command line convention of
@@ -24,22 +26,27 @@
 #     # Use local to set temporary value for the duration of current curly-scope
 #     # (sub, if- or else block, ...) which will be "undone" and reverted
 #     # back to default after exiting curly-scope.
-#     local $DPUT::Retrier::badret = $Retrier::badret_cli;
+#     local $DPUT::Retrier::badret = \&Retrier::badret_cli;
 #     # You can also do this for your completely custom badret - interpreter:
-#     local $DPUT::Retrier::badret = $Retrier::badret_myown;
+#     local $DPUT::Retrier::badret = \&badret_myown;
 # 
+# Passing badret value in construction in 'badret' option
+#
+#     my $retrier = new DPUT::Retrier('cnt' => 5, 'badret' => \&DPUT::Retrier::badret_cli);
+#
 # Demonstration of a custom badret -interpretation callback (and why callback
 # style interpretation may become handy):
 # 
 #     sub badret_myown {
 #       my ($ret) = @_;
 #       # Up to value 3 return values are warnings and okay
-#       if ($ret > 3) { return 1; } # Bad
-#       return 0; # Good (<= 3)
+#       if ($ret > 3) { return 1; } # Bad (>3)
+#       return 0; # Good/Okay (<= 3)
 #     }
 # 
 # This flexibility on iterpreting return values will hopefully allow running *any* existing
-# sub / function in a retried manner.
+# sub / function in a retried manner. With custom function you can also test undef values,
+# array,hash and code references, etc.
 #
 # ## Signaling results from run() (all tries)
 #
@@ -74,7 +81,8 @@ use warnings;
 #use Time::HiRes ('usleep');
 our $VERSION = '0.0.1';
 ## sub trythis {
-## 
+##    # ...
+##    return 1;
 ## }
 ## new Retrier('cnt' => 2)->run(sub { trythis() } );
 ## Change glocal settings by $Retrier::trycnt = ...
@@ -115,12 +123,27 @@ sub new {
     'delay'  => $opts{'delay'}  || $delay,
     'debug'  => $opts{'debug'}  || $debug,
     'args'   => $opts{'args'},
-    'badret' => $opts{'badret'} || \&badret_perl,
+    'badret' => $opts{'badret'} || \&badret_perl, # TODO: $badret, to remove order sensitiveness
     #TODO: 'throw'
   };
+  # Allow varying delays for more dynamic setting.
+  # NOTE: Setting "delays" should cancel / override "delay"
+  if (ref($opts{'delays'}) eq 'ARRAY') {
+    my $delays = $opts{'delays'};
+    # Test that number of delays give is sufficient
+    # Excess number of items does not matter
+    if (scalar(@$delays) < ($rt->{'cnt'})) { die("Not enough dynamic delay values (Make sure num-delays == try-cnt)"); }
+    # Discard 'delay' from causing ambiguity (is this wise?)
+    delete($rt->{'delay'});
+    $rt->{'delays'} = $delays;
+  }
   # Test the tester cb is *really* CODE
   if (ref($rt->{'badret'}) ne 'CODE') { die("Not 'Bad return value' -tester given"); }
   if ($rt->{'args'} && (ref($rt->{'args'}) ne 'ARRAY')) {die("'args' must be passed in ARRAY (ref)");}
+  if ($rt->{'debug'} > 1) {
+    print(STDERR "Bad return CB:s: perl: ".\&DPUT::Retrier::badret_perl.
+      ", cli: ".\&DPUT::Retrier::badret_cli.", Curr: ".$rt->{'badret'}."\n");
+  }
   bless($rt, $class);
   return($rt);
 }
@@ -159,6 +182,7 @@ sub new {
 # 
 #     $DPUT::Retrier::trycnt = 3;
 #     $DPUT::Retrier::delay = 10;
+#     # Rely on module-global defaults, instead of passing 'cnt' and 'delay'.
 #     my $ok = DPUT::Retrier->new()->run(sub { get($url); });
 #
 # This is a valid approach when settings are universal to whole app (no variance between the calls).
@@ -169,16 +193,24 @@ sub run {
   my $cnt   = $rt->{'cnt'} || $trycnt;
   my $br    = $rt->{'badret'} || $badret;
   my $delay = $rt->{'delay'} || $delay;
+  my $delays= $rt->{'delays'} || undef; # NEW: Dynamic delay
   my $args  = (ref($rt->{'args'}) eq 'ARRAY') ? $rt->{'args'} : [];
   my $i;
   my $ret;
+  # NOTE: Theoretically $br could be a string dispatchable / runnable as function symbol.
+  # However we require it to be a hard code reference for now.
+  if (ref($br) ne 'CODE') { die("badret callback not set to code-ref !\n"); }
   for ($i = 0;$i < $cnt; $i++) {
     eval { $ret = $cb->(@$args); };
     if ($@) { print(STDERR "run(): Retrier Exception "); return 0; }
-    $rt->{'debug'} && print("run(): Scored ret=$ret\n");
+    $rt->{'debug'} && print(STDERR "run(): Scored ret=$ret\n");
     if ($br->($ret)) {
-      $rt->{'debug'} && print("run(): $ret Deemed Bad by $br\n");
-      sleep($delay); next; } # Bad
+      $rt->{'debug'} && print(STDERR "run(): $ret Deemed Bad by $br\n");
+      my $usedelay = $delays ? $delays->[$i]: $delay;
+      $rt->{'debug'} && print(STDERR "run(): Wait $usedelay s.\n");
+      sleep($usedelay);
+      next;
+    } # Bad
     #print("$ret Deemed good by $br\n");
     else {  return 1; }
     
@@ -188,3 +220,4 @@ sub run {
   if ($br->($ret)) {  return 0; }
   return 1;
 }
+

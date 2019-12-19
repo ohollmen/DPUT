@@ -25,3 +25,20 @@ $i = 0;
 my $ok = DPUT::Retrier->new({'cnt' => 5, 'delay' => 1,
   'debug' => 1})->run(sub { tryme("Minnie", "Mouse"); });
 print("outcome(ok?): ".$ok."\n\n");
+
+my $retry_cfg = {'cnt' => 5, 'delay' => 1, 'debug' => 1,
+  'badret' => \&DPUT::Retrier::badret_cli, # Use CLI/shell good/bad return value convention
+  'delays' => [1,2,3,4,5]
+};
+# print("CB: " . \&DPUT::Retrier::badret_cli . "\n");
+my $retrier = new DPUT::Retrier($retry_cfg);
+sub badret_custom {
+  print("Custom badret CB\n");
+  if ($_[0]) { return 1; }
+  return 0;
+}
+sub doit {
+  print("Doit\n");
+  return 1; # Always bad
+}
+$retrier->run(\&doit);

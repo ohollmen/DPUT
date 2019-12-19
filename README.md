@@ -1,6 +1,18 @@
-# DPUT - The most elementary Data processing utilities
+# DPUT - Data Processing Utility Toolkit
 
-This module is not Object oriented in any way. It contains the most elementary operations like file reading/writing,
+This is the top-level, "umbrella" module of "Data Processing Utility Toolkit" that has lot of bread and
+butter functionality for modern SW development and devops tasks:
+
+- Reading/Parsing and Writing/Serializing into files (esp. JSON)
+- Running tasks in parallel as an optimization (supporting data driven parallell running)
+- Retrying operations under unreliable conditions, trying to create a reliable app on top of unreliable
+  infrastructure or environment (e.g. glitchy network conditions)
+- Sync/Copy large quantities of files across network or in local filesystems
+- Create Command line applications easily with minimum boilerplate
+- Extracting Markdown documentation within code files to an aggregated "publishable" documentation
+- Auditing toolchains by recording which tools and their versions were used by data processing
+
+This top-level module is not Object oriented in any way. It contains the most elementary operations like file reading/writing,
 listing directories (also recursively) on a very high level.
 
 ## Reading and writing files
@@ -31,6 +43,7 @@ Options in %opts:
 - append - append to existing file content (opens file in append-mode)
 - fmt - Format to serialize content to when the $cont parameter is actually a (data structure) reference
   Formats supported are: 'json', 'yaml' and 'perl' (Default: 'json')
+- lines - Lines in array(ref) passed in $cont should be written to file. Each of lines will be terminated with "\n".
 
 Perl format is written with small indent and no perl variable name (e.g. $VAR1)
 JSON is written in "pretty" format assuming it benefits out of human readability.
@@ -72,13 +85,90 @@ Return MD5 Checksum.
 ## isotime($time)
 Generate local ISO timestamp for current moment in time or for another point in time - with optional $time parameter.
 
-# CLRunner - Design command line apps and interfaces with ease.
+## DPUT::csv_to_data($csv, $fh, %opts);
+Extract data from CSV file by passing Text::CSV processor instance and filehandle (or filename) to load data from.
+Options:
+- cols - Pass explicit column names, do not extract column names from sheet (or map to new names)
+- striphdr - Strip first entity extracted when explicit column names ('cols') are passed
+Example CSV extraction scenario:
+
+    use Text::CSV; 
+    my $csv = Text::CSV->new({binary => 1});
+    if (!$csv) { die("No Text::CSV processor instance"); }
+    my $ok = open(my $fh, "<", "animals.csv");
+    my $arr = DPUT::csv_to_data($csv, $fh, 'cols' => undef);
+    print(Dumper($arr));
+
+## DPUT::sheet_to_data($xlsx_sheet, %opts);
+Extract data from XLSX to Array of Hashes for processing
+The data is passed as single Spreadsheet::ParseExcel::Worksheet sheet object.
+Options:
+- debug - Turn on verbose messages
+- cols - Pass explicit column names, do not extract column names from sheet (see also: striphdr)
+- striphdr - Strip first entity extracted when explicit column names ('cols') are passed
+Example CSV extraction scenario:
+
+    my $converter = Text::Iconv->new ("utf-8", "windows-1251");
+    my $excel = Spreadsheet::XLSX->new("animals.xlsx", $converter);
+    my $sheet = $excel->{Worksheet}->[0]; # Choose first sheet
+    my %xopts = ('debug' => 1, 'fullinfo' => 1);
+    $aoh = DPUT::sheet_to_data($sheet, %xopts);
+    print(Dumper($aoh));
+
+Return Array of Objects contained in the sheet processed.
+
+## $creds = netrc_creds($hostname, %opts);
+Extract credentials (username and password) for a hostname.
+The triplet of hostname, username and password will be returned as an object with:
+     {
+       "host" => "the-server-host.com:8080",
+       "user" => "jsmith",
+       "pass" => "J0hNN7b07"
+      }
+Options in %opts:
+- debug - Create dumps for dev time debugging (Note: this will potentially show secure data in logs)
+Return a complete host + credentials object (as seen above) - that is hopefully usable
+for establishing connection to the remote sever (e.g. HTTP+REST, MySQL, MongoDB, LDAP, ...)
+
+DPUT::filetree_filter_by_stat($dirpath, $filtercb, %opts);
+Collect a list of ("filtered-in") files from a directory tree based on stat results.
+Creates a list of filenames that filter callback indicates as "matching".
+Caller should pass:
+- $dirpath - Path to look for files
+- $filtercb - Callback returning true (to include) / false (to exclude) values like a normal filter function fashion.
+   Filter callback receives stat array (as reference) and absolute filename of current file as parameters.
+- %opts Processing options
+  - useret - Place return value of callback to file list generated (instead of default, which is filename)
+Using 'useret' means that filtercb function is written so that it returns a custom values that will be placed in results.
+Return list of filenames or custom callback generated objects / items.
+
+# DPUT::CLRunner - Design command line apps and interfaces with ease.
+
+CLRunner bases all its functionality on Getopt::Long, but makes the usage declarative.
+It also strongly supports the modern convention of using sub-commands for cl commands
+(E.g. git clone, git checkout or apt-get install, apt-get purge).
+
+## Usage
+my $optmeta = ["",""];
+my $runneropts = {};
+sub greet {}
+sub delegate {}
+$clrunner = DPUT::CLRunner->new($optmeta, $runneropts);
+$clrunner->ops({'greet' => \&greet, '' => \&delegate});
+
 
 ## $clrunner = DPUT::CLRunner->new($optmeta, $runneropts)
 Missing 'ops' means that subcommands are not supported by this utility and this instance.
+Options in %$runneropts
+- ops - Ops dispatch (callback) table
+- op- Single op callback (Mutually exclusive with ops, only one must be passed)
+- debug - Produce verbose output
 
 ## $clrunner->ops($ops)
-Explicit method to set operations (sub command dispatch table).
+Explicit method to set operations (sub command dispatch table). Operations dispatch table is passed in $ops (hash ref),
+where each operation keyword / label (usually a impertaive / verb form word e.g. "search") maps to a function with call signature:
+
+    $cb->($opts); # Options passed to run() method. %$opts should be a hash object that callback can handle.
 Options:
 - 'merge' - When set to true value, the new $ops will be merged with possible existing values (in overriding manner)
 
@@ -88,9 +178,11 @@ Return the op name (key in dispatch table for the uique op, undef otherwise.
 Only for module internal use (Do not use from outside app).
 
 ## $clrunner->run($opts)
-Run application in ops mode or single-op mode. This will be auto-detected.
+Run application in ops mode (supporting CL sub-commands) or single-op mode (no subcommands).
+This mode will be auto-detected.
 Options:
-'exit' - Auto exit after dispatching operation.
+- 'exit' - Auto exit after dispatching operation.
+
 Return instance for method chaining.
 
 ## $cl_params_string = $clrunner->args($clioptions)
@@ -250,8 +342,10 @@ prevent interaction with a single try.
 ## Signaling results from single try callback
 
 The return value from the callback of `...->run($cb)` is - for most
-flexibility - tested with a callback. While this initially seems inconvenient,
-the module provides 2 internal functions to handle 90%-95% of cases:
+flexibility - tested with a callback. The callback name 'badret' refers to
+"bad return value", encountering of which triggers a retry.
+While this initially seems inconvenient,the module provides 2 internal functions
+to handle 90%-95% of cases:
 
 - badret_perl - Interprets "Perl style" $ok return value as success
 - badret_cli - Interprets success with a shell command line convention of
@@ -266,9 +360,13 @@ with this are:
     # Use local to set temporary value for the duration of current curly-scope
     # (sub, if- or else block, ...) which will be "undone" and reverted
     # back to default after exiting curly-scope.
-    local $DPUT::Retrier::badret = $Retrier::badret_cli;
+    local $DPUT::Retrier::badret = \&Retrier::badret_cli;
     # You can also do this for your completely custom badret - interpreter:
-    local $DPUT::Retrier::badret = $Retrier::badret_myown;
+    local $DPUT::Retrier::badret = \&badret_myown;
+
+Passing badret value in construction in 'badret' option
+
+    my $retrier = new DPUT::Retrier('cnt' => 5, 'badret' => \&DPUT::Retrier::badret_cli);
 
 Demonstration of a custom badret -interpretation callback (and why callback
 style interpretation may become handy):
@@ -276,12 +374,13 @@ style interpretation may become handy):
     sub badret_myown {
       my ($ret) = @_;
       # Up to value 3 return values are warnings and okay
-      if ($ret > 3) { return 1; } # Bad
-      return 0; # Good (<= 3)
+      if ($ret > 3) { return 1; } # Bad (>3)
+      return 0; # Good/Okay (<= 3)
     }
 
 This flexibility on iterpreting return values will hopefully allow running *any* existing
-sub / function in a retried manner.
+sub / function in a retried manner. With custom function you can also test undef values,
+array,hash and code references, etc.
 
 ## Signaling results from run() (all tries)
 
@@ -361,6 +460,7 @@ Store good app-wide defaults in DPUT::Retrier class vars to make construction su
 
     $DPUT::Retrier::trycnt = 3;
     $DPUT::Retrier::delay = 10;
+    # Rely on module-global defaults, instead of passing 'cnt' and 'delay'.
     my $ok = DPUT::Retrier->new()->run(sub { get($url); });
 
 This is a valid approach when settings are universal to whole app (no variance between the calls).
@@ -439,7 +539,7 @@ starting to use this. Both rsync and 'onhost' feature rely on SSH. In any kind o
 automation setting you likely need your SSH public key copied to remote host to allow passwordless
 SSH.
 
-## RSyncer->new($tasksconf, %opts);
+## DPUT::RSyncer->new($tasksconf, %opts);
 
 Rsync Task items in $tasksconf (AoH) should have following properties:
 - src - Rsync source (mandatory, per rsync CL conventions)
@@ -473,6 +573,10 @@ After the run the rsync task nodes will have rsync result info written on them:
 - pid - Process id of the process that run the sync in 'parallel' run (series run pid will be set to 0)
 - rv  - rsync return value (man rsync to to interpret error values)
 - cmd - Underlying command that was generated to run rsync.
+Return 
+
+Run templating on string $tstr with parameters from $p.
+Return expanded content.
 
 ## $rst->rsync($syncer)
 
@@ -486,4 +590,75 @@ Will return results of a sync in a JSON results file with:
 These results are available to application as data structure, no poking of JSON file is necessary.
 Return always 1 here and let (top level) caller detect actual rsync (or ssh, for 'ohhost') return value
 from task node 'rv' (return value).
+
+# DPUT::DockerRunner - Run docker in automated context with preconfigured options
+
+Allow changing docker binary, e.g. $DPUT::DockerRunner::dockerbin = 'docker-b22';
+
+## DPUT::DockerRunner->new('img' => 'myimage', 'cmd' => 'compute.sh');
+
+Create new docker runner with options to run docker.
+
+Keyword Options in %opts:
+- img - Image name to use for running "docker run $IMAGE $CMD"
+- cmd - Command to run in docker (with possible whitespace separated arguments)
+- cwd - Current working directory inside container (docker -w param)
+  - Passing a explicit path sets working dir to that value
+  - passing the kw param, but with false value does not set any explicit working dir. Docker sets the cwd for you.
+  - When kw param is completely left out, container cwd is set to current host cwd
+- mergeuser - User to add as resolvable user in container /etc/passwd using volume mapping (e.g. "compute").
+- asuser - Run as user (resolvable on local system **and** docker.
+- vols - an array of volume mappings. Simple 1:1 mappings with form:to the same can be given without delimiting ":".
+
+Todo:
+- Allow checking/validating volume source locations presence. For now caller has to make sure
+they are valid.
+- Could do duplicate volume check before launch (Error response from daemon: Duplicate mount point: ...)
+ 
+### Merging a user
+
+"mergeuser" parameter can take 3 forms:
+
+- bare username resolvable on host (e.g. "mrsmith")
+- a valid passwd file line (with 7 ":" delimited fields)
+- an array(ref) with 7 elements describing valid user
+
+### Volumes
+
+Volume mappings are passed (simply in array, not hash object) in a docker-familiar notation
+"/path/on/host:/path/inside/docker. They are formulated into docker -v options.
+
+### Example of running
+Terse use case with params set and run executed on-the-fly:
+    my $rc = DPUT::DockerRunner->new('img' => 'myimage', 'cmd' => 'compute.sh')->run();
+More granular config passed and (only) command is generated:
+    my $dcfg = {
+      "img" => "ubuntu",
+      "cmd" => "ls /usr",
+      "vols" => ["/tmp","/usr", "/placeone:/anotherplace"],
+      "asuser" => "mrsmith",
+      #"mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
+    };
+    # Create Docker runner
+    my $docker = DPUT::DockerRunner->new(%$dcfg);
+    my $cmd = $docker->run('cmdstring' => 1);
+    print("Generated command: '$cmd'\n");
+
+
+Wrapper for Getting an account
+
+Detect if the currect user of the system has docker executable.
+User may additionally need to belong UNIX groups (like "docker") to actually run docker.
+This check is not done here.
+Return docker absoute path (a true value) or false if docker is not detected.
+
+## $docker->setup_accts()
+Add (merge) an account to a generated temporary passwd file on the host and map it into use (as a volume)
+inside the docker container.
+
+## $docker->run(%opts); 
+Run Docker with preconfigured params or *only* return docker run command (string) for more "manual" run.
+Options in opts:
+- cmdstring - Trigger return of command string only *without* actually running container
+Return either docker command string (w. option cmdstring) or return code of actual docker run.
 

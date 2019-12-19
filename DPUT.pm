@@ -1,6 +1,18 @@
-# # DPUT - The most elementary Data processing utilities
+# # DPUT - Data Processing Utility Toolkit
 #
-# This module is not Object oriented in any way. It contains the most elementary operations like file reading/writing,
+# This is the top-level, "umbrella" module of "Data Processing Utility Toolkit" that has lot of bread and
+# butter functionality for modern SW development and devops tasks:
+# 
+# - Reading/Parsing and Writing/Serializing into files (esp. JSON)
+# - Running tasks in parallel as an optimization (supporting data driven parallell running)
+# - Retrying operations under unreliable conditions, trying to create a reliable app on top of unreliable
+#   infrastructure or environment (e.g. glitchy network conditions)
+# - Sync/Copy large quantities of files across network or in local filesystems
+# - Create Command line applications easily with minimum boilerplate
+# - Extracting Markdown documentation within code files to an aggregated "publishable" documentation
+# - Auditing toolchains by recording which tools and their versions were used by data processing
+# 
+# This top-level module is not Object oriented in any way. It contains the most elementary operations like file reading/writing,
 # listing directories (also recursively) on a very high level.
 # 
 # ## Reading and writing files
@@ -76,6 +88,7 @@ sub jsonfile_write {
 # - append - append to existing file content (opens file in append-mode)
 # - fmt - Format to serialize content to when the $cont parameter is actually a (data structure) reference
 #   Formats supported are: 'json', 'yaml' and 'perl' (Default: 'json')
+# - lines - Lines in array(ref) passed in $cont should be written to file. Each of lines will be terminated with "\n".
 # 
 # Perl format is written with small indent and no perl variable name (e.g. $VAR1)
 # JSON is written in "pretty" format assuming it benefits out of human readability.
@@ -89,13 +102,18 @@ sub file_write {
   if ($fname eq '-') { $fh = *STDOUT; } # Allow write to STDOUT
   else {
     my $ok = open($fh, $mode, $fname);
-    if (!$ok) { die("Failed to open $fname"); }
+    if (!$ok) { die("Failed to open '$fname': $!\n"); }
   }
   #FILEOPENED:
   # Got data structure
   my $fmt = $opts{'fmt'} || 'json';
   my $ref = ref($cont);
-  if ($ref && ($fmt eq 'json')) {
+  if ($ref && ($ref eq 'ARRAY') && $opts{'lines'}) {
+    print("Array-to-write: ".Dumper($cont));
+    map({print($fh "$_\n"); } @$cont);
+    $cont = undef;
+  }
+  elsif ($ref && ($fmt eq 'json')) {
     $cont = to_json($cont, {canonical => 1, pretty => 1, convert_blessed => 1});
   }
   elsif ($ref && ($fmt eq 'yaml')) {
@@ -106,7 +124,9 @@ sub file_write {
     $cont = Data::Dumper::Dumper($cont);
   }
   elsif ($ref) { die("Format '$fmt' not supported !"); }
-  my $cnt = print($fh $cont);
+  my $cnt;
+  if ($cont) { $cnt = print($fh $cont); }
+  #DONEWRITE:
   #if ($cnt != length($cont)) {}
   if ($fname ne '-') { close($fh); }
   return $cnt;
@@ -478,4 +498,22 @@ sub named_parse {
   }
   return undef;
 }
+
+## Experimental to allow easy conversion of time + unit spec to seconds.
+my $tupatt = qr/^\s*(\d+)\s*([wdhms]){1}$/; # Note: m != month
+sub timestr2secs {
+  my ($tustr) = @_;
+  if ($tustr !~ /$tupatt/) { return undef; }
+  my %tus = (
+    "s" => 1,
+    "m" => 60,
+    "h" => 3600,
+    "d" => 86400,
+    "w" => 604800,
+  );
+  if (!$tus{$2}) { return undef; }
+  my $secs = $1 * ($tus{$2});
+  return $secs;
+}
+
 1;

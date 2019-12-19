@@ -9,7 +9,7 @@ use Text::Markdown 'markdown';
 use File::Basename;
 use Data::Dumper;
 my @mods = ("DPUT.pm",);
-my @mods2 = ("CLRunner",  "DataRun",  "MDRipper",  "OpRun", "Retrier", "ToolProbe", "RSyncer");
+my @mods2 = ("CLRunner",  "DataRun",  "MDRipper",  "OpRun", "Retrier", "ToolProbe", "RSyncer", "DockerRunner");
 map({push(@mods, "DPUT/$_.pm");} @mods2);
 #my $fname = "../DPUT/DataRun.pm";
 
