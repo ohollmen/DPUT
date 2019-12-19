@@ -53,6 +53,11 @@ my $tmpfn2 = "/tmp/$time.$$.pretty.json";
  $ok = file_write("$tmpfn2", JSON::to_json($p3, {pretty => 1}));
 if ($ok) { print("Wrote Pretty JSON nicely to '$tmpfn2'\n");}
 
+my $tmpfn3 = "/tmp/$time.$$.lines.txt";
+my $lines = ["aaa","bbb","ccc","ddd"];
+$ok = file_write("$tmpfn3", $lines, 'lines' => 1);
+if ($ok) { print("Wrotelines ('lines' => 1) to '$tmpfn3'\n");}
+
 my $md5sum = file_checksum($tmpfn2);
 if (!$md5sum) { die("Cound not generate MD5 for $tmpfn2\n"); }
 print("$md5sum $tmpfn2\n");
@@ -72,12 +77,13 @@ print("# To export all, add:\n");
 print("our \@EXPORT = (".join(', ', map({"'$_'"} @allsyms)).");\n");
 
 # Dir listings
+if (0) {
 print("# Dir listings ($DPUT::VERSION)");
 my $files = dir_list(".");
 print("F1:".Dumper($files));
 my $files2 = dir_list(".", 'tree' => 1);
 print("F2:".Dumper($files2));
-
+}
 # Time
 my $now = isotime();
 my $date = `date -I`; chomp($date);

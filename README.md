@@ -630,7 +630,8 @@ Volume mappings are passed (simply in array, not hash object) in a docker-famili
 Terse use case with params set and run executed on-the-fly:
 
      my $rc = DPUT::DockerRunner->new('img' => 'myimage', 'cmd' => 'compute.sh')->run();
-More granular config passed and (only) command is generated:
+
+More granular config passed and (only) command is generated (No actual docker run is done):
 
      my $dcfg = {
        "img" => "ubuntu",

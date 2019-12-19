@@ -109,9 +109,7 @@ sub file_write {
   my $fmt = $opts{'fmt'} || 'json';
   my $ref = ref($cont);
   if ($ref && ($ref eq 'ARRAY') && $opts{'lines'}) {
-    print("Array-to-write: ".Dumper($cont));
-    map({print($fh "$_\n"); } @$cont);
-    $cont = undef;
+    $cont = join("\n", @$cont)."\n";
   }
   elsif ($ref && ($fmt eq 'json')) {
     $cont = to_json($cont, {canonical => 1, pretty => 1, convert_blessed => 1});
@@ -125,7 +123,7 @@ sub file_write {
   }
   elsif ($ref) { die("Format '$fmt' not supported !"); }
   my $cnt;
-  if ($cont) { $cnt = print($fh $cont); }
+  $cnt = print($fh $cont);
   #DONEWRITE:
   #if ($cnt != length($cont)) {}
   if ($fname ne '-') { close($fh); }
