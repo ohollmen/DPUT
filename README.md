@@ -593,7 +593,7 @@ from task node 'rv' (return value).
 
 # DPUT::DockerRunner - Run docker in automated context with preconfigured options
 
-## DPUT::DockerRunner->new('img' => 'myimage', 'cmd' => 'compute.sh');
+## DPUT::DockerRunner->new(%opts);
 
 Create new docker runner with options to run docker.
 
@@ -623,7 +623,7 @@ they are valid.
 
 ### Volumes
 
-Volume mappings are passed (simply in array, not hash object) in a docker-familiar notation
+Volume mappings (in "vols") are passed (simply in array, not hash object) in a docker-familiar notation
 "/path/on/host:/path/inside/docker. They are formulated into docker -v options.
 
 ### Example of running
@@ -646,7 +646,12 @@ More granular config passed and (only) command is generated (No actual docker ru
      print("Generated command: '$cmd'\n");
 
 
-Wrapper for Getting an account
+## DPUT::DockerRunner::getaccount($username);
+
+Wrapper for Getting a local (or any resolvable, e.g. NIS) account.
+Returns an array of 7 elements, with fields of /etc/passwd
+
+## DPUT::DockerRunner::userhasdocker($optional_docker_executable_name);
 
 Detect if the currect user of the system has docker executable.
 User may additionally need to belong UNIX groups (like "docker") to actually run docker.
@@ -654,10 +659,13 @@ This check is not done here.
 Return docker absoute path (a true value) or false if docker is not detected.
 
 ## $docker->setup_accts()
+
 Add (merge) an account to a generated temporary passwd file on the host and map it into use (as a volume)
 inside the docker container.
+Returns true for success 0 for (various) errors (with Warning printed to STDERR, no exceptions are thrown).
 
-## $docker->run(%opts); 
+## $docker->run(%opts);
+
 Run Docker with preconfigured params or *only* return docker run command (string) for more "manual" run.
 Options in opts:
 
