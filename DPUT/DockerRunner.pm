@@ -19,8 +19,8 @@ our $dockerbin = 'docker';
 #   - Passing a explicit path sets working dir to that value
 #   - passing the kw param, but with false value does not set any explicit working dir. Docker sets the cwd for you.
 #   - When kw param is completely left out, container cwd is set to current host cwd
-# - mergeuser - User to add as resolvable user in container /etc/passwd using volume mapping (e.g. "compute").
-# - asuser - Run as user (resolvable on local system **and** docker.
+# - mergeuser - User to add as resolvable user in container /etc/passwd using volume mapping (e.g. user "compute").
+# - asuser - Run as user (resolvable on local system **and** docker).
 # - vols - an array of volume mappings. Simple 1:1 mappings with form:to the same can be given without delimiting ":".
 #
 # Todo:
@@ -128,7 +128,7 @@ sub userhasdocker {
 # 
 # Add (merge) an account to a generated temporary passwd file on the host and map it into use (as a volume)
 # inside the docker container.
-# Returns true for success 0 for (various) errors (with Warning printed to STDERR, no exceptions are thrown).
+# Returns true (1) for success and false (0) for (various) errors (with Warning printed to STDERR, no exceptions are thrown).
 sub setup_accts {
   my ($self) = @_;
   if (!$self->{'mergeuser'}) { return 0; }
@@ -150,7 +150,7 @@ sub setup_accts {
   $self->{'etcpasswd'} = $fname; # Record
   # Add new mapping for temp passwd file
   my $mapping = "$self->{'etcpasswd'}:/etc/passwd";
-  push(@{$self->{'vols'}}, );
+  push(@{$self->{'vols'}}, $mapping);
   print(STDERR "Added user '$mun' to '$fname' and will use that via new volume mapping '$mapping'.\n");
   return 1;
 }
