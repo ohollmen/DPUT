@@ -18,7 +18,7 @@ my $dcfg = {
   "vols" => ["/tmp", "/usr"],
   "asuser" => "ohollmen",
   "mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
-  "env" => {"LIFE_PURPOSE" => 42, "OSS_APP_FAVE" => "docker"},
+  "env" => {"LIFE_PURPOSE" => 42, "OSS_APP_FAVE" => "docker"}, # , %ENV
   #
   "debug" => 1,
 };
@@ -37,5 +37,5 @@ my $docker = DPUT::DockerRunner->new(%$dcfg);
 my $cmd = $docker->run('cmdstring' => 0);
 
 $docker->cmd("env");
-my $cmd = $docker->run('cmdstring' => 0);
+$cmd = $docker->run('cmdstring' => 0);
 
