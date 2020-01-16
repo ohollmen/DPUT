@@ -5,6 +5,13 @@ use Cwd;
 use DPUT;
 
 # # DPUT::DockerRunner - Run docker in automated context with preconfigured options
+# 
+# Allows
+# - Running a command under docker or generating the (potentially conplex and long) full docker command
+# - Mapping of volumes (the easy way, partially automated)
+# - Adding users from host machine to container (not image) to share files with proper ownerships betwee
+#   host and container
+
 
 ## Allow changing docker binary, e.g. $DPUT::DockerRunner::dockerbin = 'docker-b22';
 our $dockerbin = 'docker';
@@ -72,7 +79,8 @@ sub new {
   
   my $self = {'img' => $opts{'img'}, 'vols' => ($opts{'vols'} || []), 'cmd' => $opts{'cmd'},
      'mergeuser' => $opts{'mergeuser'}, asuser => $opts{'asuser'},
-     'debug' => $opts{'debug'}};
+     'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {})
+  };
   my $vols = $self->{'vols'};
   @$vols = map({/:/ ? $_ : "$_:$_"; } @$vols); # Ensure "srcvol:destvol" notation
   bless($self, $class);
@@ -94,6 +102,7 @@ sub new {
     $self->{'debug'} && print(STDERR "Run-as user (-u) '$self->{'asuser'}' resolved to uid='$uid'\n");
     $self->{'uid'} = $uid;
   }
+  
   $self->{debug} && print(STDERR Dumper($self));
   return $self; 
 }
@@ -172,6 +181,10 @@ sub run {
   if (exists($self->{'cwd'}) && !$self->{'cwd'}) { $cwd = undef; }
   if ($cwd) { push(@args, "-w", $cwd); }
   if ($self->{'uid'}) { push(@args, "-u", $self->{'uid'}); }
+  my $env = $self->{'env'};
+  if ($env && (ref($env) eq 'HASH')) {
+    for my $k (keys(%$env)) { push(@args, "-e", "'$k=$env->{$k}'"); }
+  }
   push(@args, $self->{'img'});
   push(@args, $self->{'cmd'}); # Unquoted to avoid nested quotes OR escape inner ?
   my $cmd = "docker run ".join(' ', @args);
@@ -179,4 +192,9 @@ sub run {
   $self->{debug} && print(STDERR "Running:\n$cmd\n");
   my $rc = system($cmd); # `$cmd`
   return $rc;
+}
+
+sub cmd {
+  my ($self, $cmd) = @_;
+  $self->{'cmd'} = $cmd;
 }

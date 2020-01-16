@@ -18,6 +18,7 @@ my $dcfg = {
   "vols" => ["/tmp", "/usr"],
   "asuser" => "ohollmen",
   "mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
+  "env" => {"LIFE_PURPOSE" => 42, "OSS_APP_FAVE" => "docker"},
   #
   "debug" => 1,
 };
@@ -33,5 +34,8 @@ my $dcfg = {
 $dcfg->{"mergeuser"} = $ENV{'USER'};
 $dcfg->{"cmd"} = "grep $ENV{'USER'} /etc/passwd";
 my $docker = DPUT::DockerRunner->new(%$dcfg);
+my $cmd = $docker->run('cmdstring' => 0);
+
+$docker->cmd("env");
 my $cmd = $docker->run('cmdstring' => 0);
 
