@@ -1,6 +1,6 @@
 <h1>Set of testsuites ([% title %])</h1>
 [%  FOREACH suites IN all %]
-# Suite-set: [% suites.name %]
+# Suite-set: [% suites.name %] ([% suites.tests %])
 From result file '[%  suites.resfname %]'
   [%  FOREACH suite IN suites.testsuite %]
 ## Suite/Fixture - [%  suite.name %]

@@ -7,11 +7,12 @@ use JSON;
 use Data::Dumper;
 use Template;
 use strict; use warnings;
-#my $tmpl = <<EOT;
-#EOT
-my $tmpl = DPUT::file_read("./xunit.report.template");
-my $allsuites = DPUT::testsuites_parse(".", 'debug' => 1);
-DEBUG: print(to_json($allsuites, {pretty => 1}));
+
+
+my $testpath = $ENV{'XUNIT_TEST_PATH'} || '.';
+my $tmpl = DPUT::file_read("./xunit.htreport.template");
+my $allsuites = DPUT::testsuites_parse($testpath, 'debug' => 0);
+# DEBUG: print(to_json($allsuites, {pretty => 1})); exit(1);
 my $config = {}; # None needed to carry out basic templating
 my $p = {'all' => $allsuites, "title" => "Results"};
 my $tm = Template->new($config);
