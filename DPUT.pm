@@ -530,6 +530,9 @@ sub testsuites_parse {
   my @suites = ();
   for my $fn (@$list) {
     my $x = XMLin($fn, %xopts);
+    if (!$x) { next; }
+    # Others: name, time, errors, failures
+    if (!$x->{'tests'}) { print(STDERR "Warning: does not look like xUnit results file\n"); next; }
     $x->{'resfname'} = $fn;
     $debug && print(STDERR Dumper($x));
     push(@suites, $x);

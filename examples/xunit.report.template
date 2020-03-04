@@ -1,0 +1,12 @@
+<h1>Set of testsuites ([% title %])</h1>
+[%  FOREACH suites IN all %]
+# Suite-set: [% suites.name %]
+From result file '[%  suites.resfname %]'
+  [%  FOREACH suite IN suites.testsuite %]
+## Suite/Fixture - [%  suite.name %]
+
+Run at [% suite.timestamp %] with following testcases:
+    [%  FOREACH case IN suite.testcase %]
+- [% case.name %] (Fixture: [% case.classname %], [% case.status %] => [% case.result %])[%  END %]
+  [%  END %]
+[%  END %]
