@@ -514,4 +514,27 @@ sub timestr2secs {
   return $secs;
 }
 
+sub testsuites_parse {
+  my ($path, %opts) = @_;
+  my $patt = $opts{'patt'} || '\w+\.xml$';
+  my $re = qr/$patt/;
+  my $debug = $opts{'debug'};
+  my $list = DPUT::dir_list($path);
+  #print("$re\n");
+  #print(Dumper($list));
+  @$list = map({ ($_ =~ /$re/g) ? "$path/$_" : (); } @$list);
+  #print(Dumper($list));
+  eval("use XML::Simple;"); # Lazy-load
+  my %xopts = ( 'ForceArray' => ['testsuite', 'testcase'], KeyAttr => undef);
+  #my $fname = $list->[0];
+  my @suites = ();
+  for my $fn (@$list) {
+    my $x = XMLin($fn, %xopts);
+    $x->{'resfname'} = $fn;
+    $debug && print(STDERR Dumper($x));
+    push(@suites, $x);
+  }
+  return(\@suites);
+}
+
 1;
