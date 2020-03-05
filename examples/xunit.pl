@@ -1,5 +1,6 @@
 #!/usr/bin/perl
-# 
+# Produce a xUnit (jUnit) Test report based on xUnit *.xml files in a directory.
+# Se Also: http://www.template-toolkit.org/docs/manual/Directives.html
 use lib ("..", ".");
 
 use DPUT;
@@ -17,4 +18,5 @@ my $config = {}; # None needed to carry out basic templating
 my $p = {'all' => $allsuites, "title" => "Results"};
 my $tm = Template->new($config);
 my $out = $tm->process(\$tmpl, $p);
+# "1" at the end of output (!?)
 print($out);

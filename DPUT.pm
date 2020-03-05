@@ -4,18 +4,21 @@
 # butter functionality for modern SW development and devops tasks:
 # 
 # - Reading/Parsing and Writing/Serializing into files (esp. JSON)
-# - Running tasks in parallel as an optimization (supporting data driven parallell running)
+# - Running tasks in parallel as a processing speedup optimization (supporting data driven parallel running)
 # - Retrying operations under unreliable conditions, trying to create a reliable app on top of unreliable
 #   infrastructure or environment (e.g. glitchy network conditions)
-# - Sync/Copy large quantities of files across network or in local filesystems
-# - Create Command line applications easily with minimum boilerplate
-# - Extracting Markdown documentation within code files to an aggregated "publishable" documentation
-# - Auditing toolchains by recording which tools and their versions were used by data processing
+# - Sync/Copy large quantities of files across network or in local filesystems (using **rsync**)
+# - Create Command line applications easily with minimum boilerplate (Supporting subcommands and reuse of CLI parsing specs)
+# - Extracting **Markdown documentation** within code files to an aggregated "publishable" documentation
+# - Auditing toolchains by recording which tools and their versions were used by data processing (e.g. python, git, make, gcc)
+# - Loading, interpreting and reporting **xUnit** (**jUnit**) test results (from xUnit XML files)
+# - Running **Docker** workloads in an easy and structured way.
 # 
 # This top-level module is not Object oriented in any way. It contains the most elementary operations like file reading/writing,
 # listing directories (also recursively) on a very high level.
 # 
 # ## Reading and writing files
+# 
 # - *write - write content or append content to a (existing or new) file.
 # - *read - Read file content into a variable (scalar or data structure for JSON, YAML, ...)
 # 
@@ -514,14 +517,18 @@ sub timestr2secs {
   return $secs;
 }
 # ## DPUT::testsuites_parse($path, %opts)
-# Parse files by name pattern (default '\w\.xml$') as xUnit XML test result files.
+# 
+# Parse xUnit XML test result files by name pattern (default '\w\.xml$').
 # Return files as data structure (for generating report or other kind of presentation).
-# Info on format:
+# Options in %opts
+# - debug - Output verbose info on processing
+# - patt - RegExp pattern for filenames to include as xUnit test results (default: '\w+\.xml$)
+# 
+# Info on xUnit/jUnit format:
 # 
 # - https://llg.cubic.org/docs/junit/
 # - https://www.ibm.com/support/knowledgecenter/SSQ2R2_9.1.1/com.ibm.rsar.analysis.codereview.cobol.doc/topics/cac_useresults_junit.html
 # 
-# TODO: 
 # 
 sub testsuites_parse {
   my ($path, %opts) = @_;
@@ -531,15 +538,15 @@ sub testsuites_parse {
   my $list = DPUT::dir_list($path);
   #print("$re\n");
   #print(Dumper($list));
-  my @props = ('tests', 'time', 'name', 'disabled', 'errors', 'failures', 'timestamp');
+  my @props = ("tests", "time", "name", "disabled", "errors", "failures", "timestamp");
   
   my @list2 = map({ ($_ =~ /$re/g) ? {'absfn' => "$path/$_", 'fn' => $_ }: (); } @$list);
   #print(Dumper(@list2));
   eval("use XML::Simple;"); # Lazy-load
-  my %xopts = ( 'ForceArray' => ['testsuite', 'testcase'], KeyAttr => undef );
+  my %xopts = ( 'ForceArray' => ['testsuite', 'testcase'], 'KeyAttr' => undef );
   #my $fname = $list->[0];
   my @suites = ();
-  for my $f (@list2) {
+  foreach my $f (@list2) {
     my $x = XMLin($f->{'absfn'}, %xopts);
     if (!$x) { next; }
     # Others: name, time, errors, failures
@@ -553,7 +560,7 @@ sub testsuites_parse {
       #DEBUG: map({ delete($_->{'system-out'}); delete($_->{'system-err'}); delete($_->{'failure'}); } @$tcs);
       #DEBUG: print("Got testcase on top !\n"); print(Dumper($x->{'testcase'})); # exit();
       my $x2 = {}; # New top
-      map({$x2->{$_} = $x->{$_};  } @props); # print("Copy $_\n");
+      map({ $x2->{$_} = $x->{$_}; } @props); # print("Copy $_\n");
       $x2->{'testsuite'} = [$x]; # MUST be array
       $x = $x2;
     }
@@ -561,10 +568,10 @@ sub testsuites_parse {
     $x->{'resfname'} = $f->{'fn'};
     # TODO: Iterate cases and if "skipped" property is found, set status = skipped
     # NOT: $tcs = $x->{"testsuite"}->{""}
-    for my $s (@{$x->{"testsuite"}}) {
-      for my $c (@{$s->{'testcase'}}) {
+    foreach my $s (@{$x->{"testsuite"}}) {
+      foreach my $c (@{$s->{'testcase'}}) {
     	if ($c->{'skipped'}) { $c->{'status'} = "skipped"; }
-    	if ($c->{'failure'}) { $c->{'status'} = "snafu"; }
+    	#if ($c->{'failure'}) { $c->{'status'} = "snafu"; }
       }
     }
     $debug && print(STDERR Dumper($x));

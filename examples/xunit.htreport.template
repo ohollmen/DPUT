@@ -5,6 +5,7 @@
   <title>xUnit test results</title>
   <link rel="stylesheet" type="text/css" href="">
   <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0" />
+  <!-- http://www.template-toolkit.org/docs/manual/Directives.html -->
   <style>
 th { background-color: black; color: white; text-align: left; }
 table { table-layout: fixed; }

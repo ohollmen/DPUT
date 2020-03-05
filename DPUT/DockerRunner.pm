@@ -27,7 +27,7 @@ our $dockerbin = 'docker';
 #   - passing the kw param, but with false value does not set any explicit working dir. Docker sets the cwd for you.
 #   - When kw param is completely left out, container cwd is set to current host cwd
 # - mergeuser - User to add as resolvable user in container /etc/passwd using volume mapping (e.g. user "compute").
-# - asuser - Run as user (resolvable on local system **and** docker).
+# - asuser - Run as user (resolvable on local system **and** docker) by username (Not uidnumber).
 # - vols - an array of volume mappings. Simple 1:1 mappings with form:to the same can be given without delimiting ":".
 #
 # Todo:
@@ -40,8 +40,8 @@ our $dockerbin = 'docker';
 # "mergeuser" parameter can take 3 forms:
 #
 # - bare username resolvable on host (e.g. "mrsmith")
-# - a valid passwd file line (with 7 ":" delimited fields)
-# - an array(ref) with 7 elements describing valid user
+# - a valid passwd file line string (with 7 ":" delimited fields)
+# - an array(ref) with 7 elements describing valid user (with passwd file order and conventions)
 # 
 # ### Volumes
 # 
@@ -49,6 +49,7 @@ our $dockerbin = 'docker';
 # "/path/on/host:/path/inside/docker. They are formulated into docker -v options.
 #
 # ### Example of running
+# 
 # Terse use case with params set and run executed on-the-fly:
 # 
 #      my $rc = DPUT::DockerRunner->new('img' => 'myimage', 'cmd' => 'compute.sh')->run();
@@ -65,7 +66,7 @@ our $dockerbin = 'docker';
 #      # Create Docker runner
 #      my $docker = DPUT::DockerRunner->new(%$dcfg);
 #      my $cmd = $docker->run('cmdstring' => 1);
-#      print("Generated command: '$cmd'\n");
+#      print("Generated docker command: '$cmd'\n");
 # 
 
 sub new {
@@ -91,15 +92,25 @@ sub new {
       else { $self->{'mergeuser'} = [split(/:/, $mu)]; }
     }
     my $mulen = scalar(@{$self->{'mergeuser'}});
-    if ($mulen != 7) { die("User not passed correctly (arry or string) - must contain 7 fields (Got: $mulen).".Dumper($self)); }
+    if ($mulen != 7) { die("User not passed correctly (array or string) - must contain 7 fields (Got: $mulen).".Dumper($self)); }
     $self->{'mergeuname'} = $self->{'mergeuser'}->[0];
     $self->setup_accts();
   }
   if ($self->{'asuser'}) {
     #  use User::pwent; ????
-    my $uid   = CORE::getpwnam($self->{'asuser'}); # getpwent();
+    my $uid = -1;
+    # uidnumber form given - Validate uid by doing lookup on host ?
+    # NOTE: What if user ONLY exists in docker and we want to run as that user ?
+    #if ($self->{'asuser'} =~ /^\d+$/) {
+    #  my $name  = getpwuid($self->{'asuser'});
+    #  if ($name) { $uid = $self->{'asuser'}; }
+    #}
+    # else {
+    $uid   = CORE::getpwnam($self->{'asuser'}); # getpwent();
+    # }
     if (!$uid) { print("No user resolved for '$self->{'asuser'}'\n"); }
     $self->{'debug'} && print(STDERR "Run-as user (-u) '$self->{'asuser'}' resolved to uid='$uid'\n");
+    # Docker seems to mandate uidnumber
     $self->{'uid'} = $uid;
   }
   
@@ -108,7 +119,7 @@ sub new {
 }
 # ## DPUT::DockerRunner::getaccount($username);
 # 
-# Wrapper for Getting a local (or any resolvable, e.g. NIS) account.
+# Wrapper for Getting a local (or any resolvable, e.g. NIS/LDAP) user account.
 # Returns an array of 7 elements, with fields of /etc/passwd
 sub getaccount {
   my ($uname) = @_;
@@ -170,7 +181,8 @@ sub setup_accts {
 # 
 # - cmdstring - Trigger return of command string only *without* actually running container
 # 
-# Return either docker command string (w. option cmdstring) or return code of actual docker run.
+# Note: The command to run inside docker will not be quoted.
+# Return either docker command string (w. option 'cmdstring') or return code of actual docker run.
 sub run {
   my ($self, %opts) = @_;
   my @args = ();
@@ -186,15 +198,44 @@ sub run {
     for my $k (keys(%$env)) { push(@args, "-e", "'$k=$env->{$k}'"); }
   }
   push(@args, $self->{'img'});
-  push(@args, $self->{'cmd'}); # Unquoted to avoid nested quotes OR escape inner ?
+  push(@args, $self->{'cmd'}); # Unquoted to avoid nested quotes OR should we escape inner ?
   my $cmd = "docker run ".join(' ', @args);
   if ($opts{'cmdstring'}) { return $cmd; }
   $self->{debug} && print(STDERR "Running:\n$cmd\n");
   my $rc = system($cmd); # `$cmd`
   return $rc;
 }
-
+# ## $docker->cmd($new);
+# 
+# Force command to be set after construction. Especially useful if $cmd is not known at construction time and for example
+# dummy command was used at that time. No validation on command is done
 sub cmd {
   my ($self, $cmd) = @_;
   $self->{'cmd'} = $cmd;
+}
+
+# ## DPUT::DockerRunner::dockercat_load($fname)
+# Load and validate Docker Catalog with mappings from a symbolic "friendly name" of image ("dockerlbl") to
+# image url and other info regarding colume (e.g. "vols" to use, Image may depend on these).
+# Return Array of Hash-Objects.
+sub dockercat_load {
+  my ($fname) = @_;
+  my $dc = DPUT::jsonfile_load($fname);
+  if (ref($dc) ne 'ARRAY') { die("Docker catalog is not in an ARRAY!\n"); }
+  map({
+    if (ref($_) ne 'HASH') { die("Docker catalog item is not an object!\n"); }
+    if (!$_->{'dockerlbl'} || !$_->{'dockerimg'}) { die("dockerlbl or dockerurl missing from node!"); }
+  } @$dc);
+  return $dc;
+}
+
+# ## DPUT::DockerRunner::dockercat_find($arr, $lbl)
+# Find a image definition with image properties by its label (passed as $lbl, "dockerlbl" member in node).
+# Return Hash-Object for matching image definition or a false for "not found".
+sub dockercat_find {
+  my ($dc, $lbl) = @_;
+  if (ref($dc) ne 'ARRAY') { die("Docker catalog is not in an ARRAY!\n"); }
+  my @m = grep({ $_->{'dockerlbl'} eq $lbl; } @$dc);
+  if (!@m) { return undef; }
+  return $m[0];
 }
