@@ -394,7 +394,7 @@ sub netrc_creds {
 }
 
 #################################################################################################
-# DPUT::filetree_filter_by_stat($dirpath, $filtercb, %opts);
+# ## DPUT::filetree_filter_by_stat($dirpath, $filtercb, %opts);
 # Collect a list of ("filtered-in") files from a directory tree based on stat results.
 # Creates a list of filenames that filter callback indicates as "matching".
 # Caller should pass:
@@ -513,7 +513,16 @@ sub timestr2secs {
   my $secs = $1 * ($tus{$2});
   return $secs;
 }
-
+# ## DPUT::testsuites_parse($path, %opts)
+# Parse files by name pattern (default '\w\.xml$') as xUnit XML test result files.
+# Return files as data structure (for generating report or other kind of presentation).
+# Info on format:
+# 
+# - https://llg.cubic.org/docs/junit/
+# - https://www.ibm.com/support/knowledgecenter/SSQ2R2_9.1.1/com.ibm.rsar.analysis.codereview.cobol.doc/topics/cac_useresults_junit.html
+# 
+# TODO: 
+# 
 sub testsuites_parse {
   my ($path, %opts) = @_;
   my $patt = $opts{'patt'} || '\w+\.xml$';
@@ -522,19 +531,44 @@ sub testsuites_parse {
   my $list = DPUT::dir_list($path);
   #print("$re\n");
   #print(Dumper($list));
-  @$list = map({ ($_ =~ /$re/g) ? "$path/$_" : (); } @$list);
-  #print(Dumper($list));
+  my @props = ('tests', 'time', 'name', 'disabled', 'errors', 'failures', 'timestamp');
+  
+  my @list2 = map({ ($_ =~ /$re/g) ? {'absfn' => "$path/$_", 'fn' => $_ }: (); } @$list);
+  #print(Dumper(@list2));
   eval("use XML::Simple;"); # Lazy-load
-  my %xopts = ( 'ForceArray' => ['testsuite', 'testcase'], KeyAttr => undef);
+  my %xopts = ( 'ForceArray' => ['testsuite', 'testcase'], KeyAttr => undef );
   #my $fname = $list->[0];
   my @suites = ();
-  for my $fn (@$list) {
-    my $x = XMLin($fn, %xopts);
+  for my $f (@list2) {
+    my $x = XMLin($f->{'absfn'}, %xopts);
     if (!$x) { next; }
     # Others: name, time, errors, failures
+    # NOTE: Both testsuites and testsuite should have "tests"
     if (!$x->{'tests'}) { print(STDERR "Warning: does not look like xUnit results file\n"); next; }
-    $x->{'resfname'} = $fn;
+    # Autodetect missing **testsuites** (optional) top-level element (Need keepRoot ?). Was originally required.
+    # Generate/Nest (wrapping) **testsuites** element  if not present in XML. Detect by "testcase" located directly under top.
+    my $tcs = $x->{'testcase'};
+    if ($tcs) {
+      
+      #DEBUG: map({ delete($_->{'system-out'}); delete($_->{'system-err'}); delete($_->{'failure'}); } @$tcs);
+      #DEBUG: print("Got testcase on top !\n"); print(Dumper($x->{'testcase'})); # exit();
+      my $x2 = {}; # New top
+      map({$x2->{$_} = $x->{$_};  } @props); # print("Copy $_\n");
+      $x2->{'testsuite'} = [$x]; # MUST be array
+      $x = $x2;
+    }
+    # NOTE: Innermost "testcase" element may have a nested "error", "failure" or "skipped" element, how to deal with these ?
+    $x->{'resfname'} = $f->{'fn'};
+    # TODO: Iterate cases and if "skipped" property is found, set status = skipped
+    # NOT: $tcs = $x->{"testsuite"}->{""}
+    for my $s (@{$x->{"testsuite"}}) {
+      for my $c (@{$s->{'testcase'}}) {
+    	if ($c->{'skipped'}) { $c->{'status'} = "skipped"; }
+    	if ($c->{'failure'}) { $c->{'status'} = "snafu"; }
+      }
+    }
     $debug && print(STDERR Dumper($x));
+    
     push(@suites, $x);
   }
   return(\@suites);

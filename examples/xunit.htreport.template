@@ -1,47 +1,50 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
-
+<!DOCTYPE HTML>
 <html lang="en">
-
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta charset="utf-8">
   <title>xUnit test results</title>
-  <link rel="stylesheet" type="text/css" href="coverage/gcov.css">
-</head>
-<style>
+  <link rel="stylesheet" type="text/css" href="">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0" />
+  <style>
 th { background-color: black; color: white; text-align: left; }
-</style>
+table { table-layout: fixed; }
+  </style>
+</head>
+
 <body>
       
 
 <h1>Set of testsuites ([% title %])</h1>
 
 [%  FOREACH suites IN all %]
-<h2> Suite-set: [% suites.name %] ([% suites.tests %]) </h2>
-<p>From result file '[%  suites.resfname %]'</p>
+<h2> Suite-set: [% suites.name %] ([% suites.tests %] tests from <tt>[%  suites.resfname %]</tt>) </h2>
+<!-- <p>From result file '<tt>[%  suites.resfname %]</tt>'</p> -->
   [%  FOREACH suite IN suites.testsuite %]
 <h3> Suite/Fixture - [%  suite.name %] </h3>
 
-Run at [% suite.timestamp %] with following testcases:
+<p>Run at [% suite.timestamp %] with following ([% suite.tests %]) testcases:</p>
 
 <table width="80%" border=0 cellspacing=0 cellpadding=0>
 <tr>
-  <th style="width: 220px">Name</th>
+  <th style="width: 420px">Name</th>
   <th style="width: 180px">Fixture</th>
   <th style="width: 100px">Status</th>
   <th style="width: 100px">Result</th>
-  <th></th>
-  <th></th>
+  <th style="width: 100px">Time</th>
+  
 </tr>
-    [%  FOREACH case IN suite.testcase %]
+    [% FOREACH case IN suite.testcase %]
 <tr>
-<td>[% case.name %]</td><td>[% case.classname %]</td>
-<td>[% case.status %] </td><td> [% case.result %]</td>
+  <td>[% case.name %]</td><td>[% case.classname %]</td>
+  <td>[% case.status %]</td><td>[% (case.error or case.failure) ? '<span style="color: red">FAIL' : '<span style="color: green">PASS' %]</span></td>  <!--<td>[% case.result %]</td>-->
+  <td> [% case.time %]</td>
 </tr>
-[%  END %]
-  [%  END %]
+[% END %]
 </table>
+[% END %]
 
-[%  END %]
+
+[% END %]
 
 
 </body>
