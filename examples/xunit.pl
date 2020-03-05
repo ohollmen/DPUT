@@ -17,6 +17,7 @@ $ENV{'XUNIT_DEBUG'} && print(to_json($allsuites, {pretty => 1})) && exit(1);
 my $config = {}; # None needed to carry out basic templating
 my $p = {'all' => $allsuites, "title" => "Results"};
 my $tm = Template->new($config);
-my $out = $tm->process(\$tmpl, $p);
+my $out;
+my $rc = $tm->process(\$tmpl, $p, \$out);
 # "1" at the end of output (!?)
 print($out);
