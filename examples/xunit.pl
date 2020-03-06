@@ -1,39 +1,58 @@
 #!/usr/bin/perl
-# Produce a xUnit (jUnit) Test report based on xUnit *.xml files in a directory.
-# Se Also: http://www.template-toolkit.org/docs/manual/Directives.html
-use lib ("..", ".");
+# # XUnit Parser/Loader
+# Produce a xUnit (jUnit) Test report based on xUnit *.xml testresult files in a directory.
+# DPUT toolkit Reference implementation for parsing and loading test results.
+# Supports ops (via subcommands):
+# 
+# - dumpsjon - Dump all parsed xUnit results as JSON
+# - report - Generate a HTML report output using templating (example template provided to be customized)
+# 
+# # See Also:
+# 
+# - Template toolkit: http://www.template-toolkit.org/docs/manual/Directives.html
 
-use DPUT;
-use JSON;
+use FindBin qw($Bin $Script);
+
 use Data::Dumper;
-use Template;
-use strict; use warnings;
 use Getopt::Long;
-$Data::Dumper::Sortkeys;
-my $ops = {dumpjson => 1, report => 1};
+# In an applied codebase ...
+#use lib ("$Bin/../NNN");
+use lib ("..", ".");
+use JSON;
+use Template;
+use DPUT;
+
+use strict; use warnings;
+$Data::Dumper::Sortkeys = 1;
+my $ops = {dumpjson => \&dumpjson, report => \&report, help => \&usage,};
 my $op = shift(@ARGV);
 if (!$op) { usage("Missing subcommand\n"); }
-if (!$ops->{$op}) { }
-my %opts = ('path' => '.', 'title' => 'All Test Results');
-GetOptions (\%opts, 'path=s', 'title=s');
+if (!$ops->{$op}) { usage("'".$op ."' - No such subcommand !\n"); }
+my %opts = ('path' => '.', 'title' => 'All Test Results',
+  'ttkit' => 'Template', 'tmplfname' => './xunit.htreport.template');
+GetOptions (\%opts, 'path=s', 'title=s', 'tmplfname=s', ); # 'ttkit=s'
 # Common pre-ops
 my $testpath = $ENV{'XUNIT_TEST_PATH'} || $opts{'path'};
-my $tmpl = DPUT::file_read("./xunit.htreport.template");
+my $tmpl = DPUT::file_read($opts{'tmplfname'});
 my $allsuites = DPUT::testsuites_parse($testpath, 'debug' => 0);
+my $rc = $ops->{$op}->();
+exit(1);
 # $ENV{'XUNIT_DEBUG'} ||
-if ( ($op eq 'dumpjson')) {
+sub dumpjson {
   print(to_json($allsuites, {pretty => 1}));
   exit(1);
 }
-# Else ...
-my $config = {}; # None needed to carry out basic templating
-my $p = {'all' => $allsuites, "title" => $opts{'title'}};
-my $tm = Template->new($config);
-my $out;
-my $rc = $tm->process(\$tmpl, $p, \$out);
-# "1" at the end of output (!?)
-print($out);
-
+sub report {
+  my $config = {}; # None needed to carry out basic templating
+  my $p = {'all' => $allsuites, "title" => $opts{'title'}};
+  my $out;
+  # Dispatch templating based on config ?
+  my $tm = Template->new($config);
+  my $rc = $tm->process(\$tmpl, $p, \$out);
+  # Had "1" at the end of output because by Template toolkit by default
+  # Produces output to stdout, NOT return the content (like other toolkits)
+  print($out);
+}
 sub usage {
   my ($msg) = @_;
   if ($msg) { print(STDERR "$msg\n"); }
@@ -52,6 +71,7 @@ Examples:
 Defaults:
 - --path - Optional, Defaults to "." (current dir). Can be overriden by env. XUNIT_TEST_PATH.
 - --title - Title for whole test suites run (w. multiple *.xml files)
+- --tmplfname - Template filename (file must be compatible with current templating engine e.g. "Template")
 EOT
   print(STDERR $usage);
   exit(1);

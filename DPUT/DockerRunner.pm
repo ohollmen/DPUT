@@ -81,8 +81,9 @@ sub new {
   
   my $self = {'img' => $opts{'img'}, 'vols' => ($opts{'vols'} || []), 'cmd' => $opts{'cmd'},
      'mergeuser' => $opts{'mergeuser'}, asuser => $opts{'asuser'},
-     'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {}), 'cwd' => $opts{'cwd'}, 'asgroup' => $opts{'asgroup'}
+     'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {}),  'asgroup' => $opts{'asgroup'} # 'cwd' => $opts{'cwd'},
   };
+  if (exists($opts{'cwd'})) { $self->{'cwd'} = $opts{'cwd'}; }
   my $vols = $self->{'vols'};
   @$vols = map({/:/ ? $_ : "$_:$_"; } @$vols); # Ensure "srcvol:destvol" notation
   bless($self, $class);
@@ -206,6 +207,7 @@ sub run {
   push(@args, map({("-v", "'$_'");} @{$self->{'vols'}}) ); # Volume args
   my $cwd = getcwd(); # Default: Auto-probe
   if ($self->{'cwd'}) { $cwd = $self->{'cwd'}; }
+  #  See constructor documentation for this behavior
   if (exists($self->{'cwd'}) && !$self->{'cwd'}) { $cwd = undef; }
   if ($cwd) { push(@args, "-w", $cwd); }
   if ($self->{'uid'}) {
@@ -232,6 +234,16 @@ sub run {
 sub cmd {
   my ($self, $cmd) = @_;
   $self->{'cmd'} = $cmd;
+}
+# ## $docker->vols_add(\@vols)
+# 
+# Adds to volumes with relevant checks (just type checks, no overlap check is done).
+# Any errors in parameters will only trigger warnings (not treated as errors).
+sub vols_add {
+  my ($self, $vols) = @_;
+  if (ref($vols) ne 'ARRAY') { print(STDERR "Warn: vols not in Array"); return; }
+  if (!$self->{'vols'}) { $self->{'vols'} = []; }
+  push(@{$self->{'vols'}}, @$vols);
 }
 
 # ## DPUT::DockerRunner::dockercat_load($fname)
