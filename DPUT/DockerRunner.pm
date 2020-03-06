@@ -156,7 +156,7 @@ sub setup_accts {
   # Run dump from docker
   my $dumpcmd = "docker run --rm '$self->{'img'}' cat /etc/passwd";
   my @passout = `$dumpcmd`;
-  if (!@passout) { print(STDERR "Warning: Could not extract passwd from docker ($dumpcmd)\n");return 0; }
+  if (!@passout) { print(STDERR "Warning: Could not extract passwd from docker ($dumpcmd, uid:$<)\n");return 0; }
   chomp(@passout);
   #$self->{'debug'} && print(STDERR "PASSDUMP:".Dumper(\@passout));
   $self->{'debug'} && print(STDERR "setup_accts: Got ".scalar(@passout)." passwd lines from docker.\n");
