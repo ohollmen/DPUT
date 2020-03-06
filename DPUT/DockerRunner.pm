@@ -154,8 +154,9 @@ sub setup_accts {
   if (!$self->{'mergeuser'}) { return 0; }
   if (!$self->{'mergeuname'}) { print(STDERR "Warning: Merge user passed, but no 'mergeuname' resolved\n");return 0; }
   # Run dump from docker
-  my @passout = `docker run --rm '$self->{'img'}' cat /etc/passwd`;
-  if (!@passout) { print(STDERR "Warning: Could not extract passwd from docker\n");return 0; }
+  my $dumpcmd = "docker run --rm '$self->{'img'}' cat /etc/passwd";
+  my @passout = `$dumpcmd`;
+  if (!@passout) { print(STDERR "Warning: Could not extract passwd from docker ($dumpcmd)\n");return 0; }
   chomp(@passout);
   #$self->{'debug'} && print(STDERR "PASSDUMP:".Dumper(\@passout));
   $self->{'debug'} && print(STDERR "setup_accts: Got ".scalar(@passout)." passwd lines from docker.\n");
