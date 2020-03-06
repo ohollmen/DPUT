@@ -80,7 +80,7 @@ sub new {
   
   my $self = {'img' => $opts{'img'}, 'vols' => ($opts{'vols'} || []), 'cmd' => $opts{'cmd'},
      'mergeuser' => $opts{'mergeuser'}, asuser => $opts{'asuser'},
-     'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {})
+     'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {}), 'cwd' => $opts{'cwd'}
   };
   my $vols = $self->{'vols'};
   @$vols = map({/:/ ? $_ : "$_:$_"; } @$vols); # Ensure "srcvol:destvol" notation
