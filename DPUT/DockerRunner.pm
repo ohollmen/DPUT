@@ -187,7 +187,7 @@ sub setup_accts {
   # If remote, must copy file, keep name
   if ($remhost) { my $cpc = "scp -p $fname $remhost:$fname"; `$cpc`; if ($?) {} }
   push(@{$self->{'vols'}}, $mapping);
-  print(STDERR "Added user '$mun' to '$fname' and will use that via new volume mapping '$mapping'.\n");
+  $self->{'debug'} && print(STDERR "Added user '$mun' to '$fname' and will use that via new volume mapping '$mapping'.\n");
   return 1;
 }
 # ## $docker->run(%opts);
