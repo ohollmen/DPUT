@@ -95,7 +95,7 @@ sub new {
     if ($mulen != 7) { die("User not passed correctly (array or string) - must contain 7 fields (Got: $mulen).".Dumper($self)); }
     $self->{'mergeuname'} = $self->{'mergeuser'}->[0];
     my %aopts = ('host' => $opts{'host'} || undef );
-    $self->setup_accts();
+    $self->setup_accts(%aopts);
   }
   if ($self->{'asuser'}) {
     #  use User::pwent; ????
