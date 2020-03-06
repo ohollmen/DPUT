@@ -94,6 +94,7 @@ sub new {
     my $mulen = scalar(@{$self->{'mergeuser'}});
     if ($mulen != 7) { die("User not passed correctly (array or string) - must contain 7 fields (Got: $mulen).".Dumper($self)); }
     $self->{'mergeuname'} = $self->{'mergeuser'}->[0];
+    my %aopts = ('host' => $opts{'host'} || undef );
     $self->setup_accts();
   }
   if ($self->{'asuser'}) {
@@ -148,14 +149,21 @@ sub userhasdocker {
 # 
 # Add (merge) an account to a generated temporary passwd file on the host and map it into use (as a volume)
 # inside the docker container.
+# Options:
+# 
+# - host - Optional remote host to prepare the file on (if it is known docker job will run there instead of current host).
+# 
 # Returns true (1) for success and false (0) for (various) errors (with Warning printed to STDERR, no exceptions are thrown).
 sub setup_accts {
-  my ($self) = @_;
+  my ($self, %opts) = @_;
   if (!$self->{'mergeuser'}) { return 0; }
   if (!$self->{'mergeuname'}) { print(STDERR "Warning: Merge user passed, but no 'mergeuname' resolved\n");return 0; }
+  my $remhost = $opts{'host'} || $self->{'host'};
   # Run dump from docker
   my $dumpcmd = "docker run --rm '$self->{'img'}' cat /etc/passwd";
+  if ($remhost) { $dumpcmd = "ssh $remhost \"$dumpcmd\""; }
   my @passout = `$dumpcmd`;
+  # srw-rw---- /var/run/docker.sock
   if (!@passout) { print(STDERR "Warning: Could not extract passwd from docker ($dumpcmd, uid:$<)\n");return 0; }
   chomp(@passout);
   #$self->{'debug'} && print(STDERR "PASSDUMP:".Dumper(\@passout));
@@ -171,6 +179,8 @@ sub setup_accts {
   $self->{'etcpasswd'} = $fname; # Record
   # Add new mapping for temp passwd file
   my $mapping = "$self->{'etcpasswd'}:/etc/passwd";
+  # If remote, must copy file, keep name
+  if ($remhost) { my $cpc = "scp -p $fname $remhost:$fname"; `$cpc`; if ($?) {} }
   push(@{$self->{'vols'}}, $mapping);
   print(STDERR "Added user '$mun' to '$fname' and will use that via new volume mapping '$mapping'.\n");
   return 1;
