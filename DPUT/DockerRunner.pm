@@ -28,6 +28,7 @@ our $dockerbin = 'docker';
 #   - When kw param is completely left out, container cwd is set to current host cwd
 # - mergeuser - User to add as resolvable user in container /etc/passwd using volume mapping (e.g. user "compute").
 # - asuser - Run as user (resolvable on local system **and** docker) by username (Not uidnumber).
+# - asgroup - Run as group (either group name or gidnumber)
 # - vols - an array of volume mappings. Simple 1:1 mappings with form:to the same can be given without delimiting ":".
 #
 # Todo:
@@ -73,14 +74,14 @@ sub new {
   my ($class, %opts) = @_;
   if (!keys(%opts)) { die("No Options !\n"); }
   #my $cfg = $opts{'config'} || {};
-  print(Dumper(\%opts));
+  $opts{'debug'} && print(Dumper(\%opts));
   if (!$opts{'img'}) { die("No Docker Image\n"); }
   if (!$opts{'cmd'}) { die("No Docker Command to execute\n"); }
   #if (!$opts{'img'}) { die("Does not look like docker build\n"); }
   
   my $self = {'img' => $opts{'img'}, 'vols' => ($opts{'vols'} || []), 'cmd' => $opts{'cmd'},
      'mergeuser' => $opts{'mergeuser'}, asuser => $opts{'asuser'},
-     'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {}), 'cwd' => $opts{'cwd'}
+     'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {}), 'cwd' => $opts{'cwd'}, 'asgroup' => $opts{'asgroup'}
   };
   my $vols = $self->{'vols'};
   @$vols = map({/:/ ? $_ : "$_:$_"; } @$vols); # Ensure "srcvol:destvol" notation
@@ -113,6 +114,10 @@ sub new {
     $self->{'debug'} && print(STDERR "Run-as user (-u) '$self->{'asuser'}' resolved to uid='$uid'\n");
     # Docker seems to mandate uidnumber
     $self->{'uid'} = $uid;
+    if ($self->{'asgroup'}) {
+      if ($self->{'asgroup'} =~ /^\d+/) { $self->{'gid'} = int($self->{'asgroup'}); }
+      else { $self->{'gid'} = CORE::getgrnam($self->{'asgroup'}); }
+    }
   }
   
   $self->{debug} && print(STDERR Dumper($self));
@@ -203,7 +208,11 @@ sub run {
   if ($self->{'cwd'}) { $cwd = $self->{'cwd'}; }
   if (exists($self->{'cwd'}) && !$self->{'cwd'}) { $cwd = undef; }
   if ($cwd) { push(@args, "-w", $cwd); }
-  if ($self->{'uid'}) { push(@args, "-u", $self->{'uid'}); }
+  if ($self->{'uid'}) {
+    my $uid = $self->{'uid'};
+    if ($self->{'gid'}) {  $uid .= ":$self->{'gid'}"; }
+    push(@args, "-u", $uid);
+  }
   my $env = $self->{'env'};
   if ($env && (ref($env) eq 'HASH')) {
     for my $k (keys(%$env)) { push(@args, "-e", "'$k=$env->{$k}'"); }
