@@ -1,15 +1,17 @@
 #!/usr/bin/perl
 # # XUnit Parser/Loader
+# 
 # Produce a xUnit (jUnit) Test report based on xUnit *.xml testresult files in a directory.
 # DPUT toolkit Reference implementation for parsing and loading test results.
 # Supports ops (via subcommands):
 # 
 # - dumpsjon - Dump all parsed xUnit results as JSON
 # - report - Generate a HTML report output using templating (example template provided to be customized)
+# - help - Output Usage help
 # 
 # # See Also:
 # 
-# - Template toolkit: http://www.template-toolkit.org/docs/manual/Directives.html
+# - Template Toolkit: http://www.template-toolkit.org/docs/manual/Directives.html
 
 use FindBin qw($Bin $Script);
 
@@ -28,27 +30,33 @@ my $ops = {dumpjson => \&dumpjson, report => \&report, help => \&usage,};
 my $op = shift(@ARGV);
 if (!$op) { usage("Missing subcommand\n"); }
 if (!$ops->{$op}) { usage("'".$op ."' - No such subcommand !\n"); }
-my %opts = ('path' => '.', 'title' => 'All Test Results',
-  'ttkit' => 'Template', 'tmplfname' => './xunit.htreport.template');
-GetOptions (\%opts, 'path=s', 'title=s', 'tmplfname=s', ); # 'ttkit=s'
+my @optmeta = ('path=s', 'title=s', 'tmplfname=s', 'tree');
+my %opts = (
+  'path' => '.', 'title' => 'All Test Results',
+  'ttkit' => 'Template', 'tmplfname' => './xunit.htreport.template', 'tree' => 0);
+GetOptions (\%opts, @optmeta); # 'ttkit=s'
 # Common pre-ops
 my $testpath = $ENV{'XUNIT_TEST_PATH'} || $opts{'path'};
 my $tmpl = DPUT::file_read($opts{'tmplfname'});
-my $allsuites = DPUT::testsuites_parse($testpath, 'debug' => 0);
+# 
+my $allsuites = DPUT::testsuites_parse($testpath, 'debug' => 0, 'tree' => $opts{'tree'});
+if (!$allsuites) { die("Could not parse xUnit test files !"); }
+my $cnt_tot = DPUT::testsuites_test_cnt($allsuites);
 my $rc = $ops->{$op}->();
-exit(1);
+exit(0);
 # $ENV{'XUNIT_DEBUG'} ||
 sub dumpjson {
   print(to_json($allsuites, {pretty => 1}));
   exit(1);
 }
 sub report {
-  my $config = {}; # None needed to carry out basic templating
-  my $p = {'all' => $allsuites, "title" => $opts{'title'}};
+  my $config = {}; # Template toolkit config Params - None needed to carry out basic templating
+  my $p = {'all' => $allsuites, "title" => $opts{'title'}, 'cnt_tot' => $cnt_tot}; # Template params
   my $out;
   # Dispatch templating based on config ?
   my $tm = Template->new($config);
-  my $rc = $tm->process(\$tmpl, $p, \$out);
+  my $ok = $tm->process(\$tmpl, $p, \$out);
+  if (!$ok) { die("failed to run templating !"); }
   # Had "1" at the end of output because by Template toolkit by default
   # Produces output to stdout, NOT return the content (like other toolkits)
   print($out);

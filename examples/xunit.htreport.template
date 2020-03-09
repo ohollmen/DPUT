@@ -15,7 +15,7 @@ table { table-layout: fixed; }
 <body>
       
 
-<h1>Set of testsuites ([% title %])</h1>
+<h1>Set of testsuites ([% title %], [% cnt_tot %] tests)</h1>
 
 [%  FOREACH suites IN all %]
 <h2> Suite-set: [% suites.name %] ([% suites.tests %] tests from <tt>[%  suites.resfname %]</tt>) </h2>

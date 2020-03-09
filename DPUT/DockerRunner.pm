@@ -7,10 +7,12 @@ use DPUT;
 # # DPUT::DockerRunner - Run docker in automated context with preconfigured options
 # 
 # Allows
-# - Running a command under docker or generating the (potentially conplex and long) full docker command
-# - Mapping of volumes (the easy way, partially automated)
-# - Adding users from host machine to container (not image) to share files with proper ownerships betwee
+# - Running a command under docker or generating the (potentially complex and long) full docker command
+# - Setting user, group, current workdir
+# - Mapping Docker bind volumes (the easy way, partially automated)
+# - Adding users from host machine to container (not image) to share files with proper ownerships between
 #   host and container
+# - Pass env vars from host environment to container
 
 
 ## Allow changing docker binary, e.g. $DPUT::DockerRunner::dockerbin = 'docker-b22';

@@ -133,7 +133,7 @@ sub file_write {
   return $cnt;
 }
 
-# ## file_read($fname, %opts)
+# ## DPUT::file_read($fname, %opts)
 # Read file content from a file by $fname.
 # Options in opts:
 # - 'lines' - Pre-split to lines and return array(ref) instead of scalar content
@@ -157,7 +157,7 @@ sub file_read {
   close($fh);
   return $cont;
 }
-# ## dir_list($path, %opts)
+# ## DPUT::dir_list($path, %opts)
 # List a single directory or subdirectory tree.
 # $path can be any resolvable path (relative or absolute).
 # Options:
@@ -174,7 +174,7 @@ sub dir_list {
     sub wanted {
       no warnings 'all'; # local $SIG{__WARN__} = sub { };
       my $an = $File::Find::name;
-      $opts{'debug'} || print("Found: $an\n");
+      $opts{'debug'} && print(STDERR "Found: $an\n");
       push(@files, $an);
     }
     
@@ -523,8 +523,36 @@ sub timestr2secs {
 # Options in %opts
 # - debug - Output verbose info on processing
 # - patt - RegExp pattern for filenames to include as xUnit test results (default: '\w+\.xml$)
+# - tree - Do recursive directory scan for test result files
 # 
-# Info on xUnit/jUnit format:
+# ## Example
+# 
+# Full Blown template based tests results processing (on API level, with error checks):
+# 
+#     use DPUT;
+#     use Template; # An example templating engine
+#     my $testpath_top  = "./tests"; # Dirtree to scan from (See below: 'tree' => 1)
+#     my $test_out_html = "./tests/all_results.html";
+#     my $test_out_json = "./tests/all_results.json";
+#     my $test_tmpl     = "/place/for/tmpl/xunit.htreport.template";
+#     # Process ! 'tree' => 1 - recursive
+#     my $suites = DPUT::testsuites_parse($testpath_top, 'tree' => 1);
+#     if (!$suites) { print(STDERR "Test HTML Report generation failed"); }
+#     my $cnt_tot = DPUT::testsuites_test_cnt($allsuites);
+#     my $out = ''; # Template toolkit output var
+#     # Template parameters and template
+#     my $p = {'all' => $suites, "title" => "Build ... test results", "cnt_tot" => $cnt_tot};
+#     my $tmpl = DPUT::file_read($test_tmpl);
+#     if (!$tmpl) { print(STDERR "Test HTML template loading failed"); }
+#     # Run templating (using params and loaded template)
+#     my $tm = Template->new({}); # Empty config (seems to work)
+#     my $ok = $tm->process(\$tmpl, $p, \$out);
+#     if (!$ok) { print(STDERR "Test HTML Report generation failed"); }
+#     # Write both HTML and JSON
+#     DPUT::file_write($test_out_html, $out); # HTML report
+#     DPUT::file_write($test_out_json, $suites, 'fmt' => 'json'); # JSON (serializes json automatically)
+#     
+# ## Info on xUnit/jUnit format:
 # 
 # - https://llg.cubic.org/docs/junit/
 # - https://www.ibm.com/support/knowledgecenter/SSQ2R2_9.1.1/com.ibm.rsar.analysis.codereview.cobol.doc/topics/cac_useresults_junit.html
@@ -535,17 +563,17 @@ sub testsuites_parse {
   my $patt = $opts{'patt'} || '\w+\.xml$';
   my $re = qr/$patt/;
   my $debug = $opts{'debug'};
-  my $list = DPUT::dir_list($path);
+  my %diropts = ('tree' => ($opts{'tree'} || 0));
+  my $list = DPUT::dir_list($path, %diropts);
   #print("$re\n");
   #print(Dumper($list));
   my @props = ("tests", "time", "name", "disabled", "errors", "failures", "timestamp");
-  
+  # Map and filter result files into final list of result files
   my @list2 = map({ ($_ =~ /$re/g) ? {'absfn' => "$path/$_", 'fn' => $_ }: (); } @$list);
-  #print(Dumper(@list2));
+  # print(Dumper(@list2));
   eval("use XML::Simple;"); # Lazy-load
   my %xopts = ( 'ForceArray' => ['testsuite', 'testcase'], 'KeyAttr' => undef );
-  #my $fname = $list->[0];
-  my @suites = ();
+  my @suites = (); # Suites to collect
   foreach my $f (@list2) {
     my $x = XMLin($f->{'absfn'}, %xopts);
     if (!$x) { next; }
@@ -579,6 +607,16 @@ sub testsuites_parse {
     push(@suites, $x);
   }
   return(\@suites);
+}
+# # DPUT::testsuites_test_cnt(\@suites)
+# 
+# Find out the total number of individual tests in results as parsed by DPUT::testsuites_parse(...)
+sub testsuites_test_cnt {
+  my ($suites) = @_;
+  my $cnt = 0;
+  if (ref($suites) ne 'ARRAY') { die("Suites not in array for test counting !"); }
+  map({$cnt += $_->{'tests'}} @$suites);
+  return $cnt;
 }
 
 1;
