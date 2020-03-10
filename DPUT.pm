@@ -33,6 +33,8 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 $Data::Dumper::Terse = 1;
 use File::Find;
+use File::Spec;
+
 use Scalar::Util ('reftype');
 our @EXPORT = ('jsonfile_load', 'jsonfile_write', 'file_write', 'file_read', 'dir_list', 'domainname', 'require_fastjson', 'file_checksum', 'isotime');
 our $VERSION = "0.0.2";
@@ -163,6 +165,7 @@ sub file_read {
 # Options:
 # - 'tree' - Create recursive listing
 # - 'preprocess' - File::Find preprocess for tree traversal (triggered by 'tree' option)
+# - 'abs' - Return absolute paths
 # Return the files as array(ref)
 sub dir_list {
   my ($path, %opts) = @_;
@@ -173,9 +176,10 @@ sub dir_list {
     # Option 'no_chdir' makes $_ be == $File::Find::name
     sub wanted {
       no warnings 'all'; # local $SIG{__WARN__} = sub { };
-      my $an = $File::Find::name;
-      $opts{'debug'} && print(STDERR "Found: $an\n");
-      push(@files, $an);
+      my $fn = $File::Find::name; # Originally Absolute
+      if (!$opts{'abs'}) { $fn = File::Spec->abs2rel($fn , $path ); } # Normalize (strip) to relative
+      $opts{'debug'} && print(STDERR "Found: $fn\n");
+      push(@files, $fn);
     }
     
     my $ffopts = { "wanted" => \&wanted, "follow" => $follow, 'no_chdir' => 1};
@@ -188,6 +192,7 @@ sub dir_list {
   closedir($dir);
   # Possible filtering ...
   @files = grep({!/^\.\.?$/} @files);
+  if ($opts{'abs'}) { map({"$path/$_"} @files); } # Map to abs names
   return \@files;
 }
 ## Do flexible path prefixing
@@ -571,7 +576,7 @@ sub testsuites_parse {
   my @props = ("tests", "time", "name", "disabled", "errors", "failures", "timestamp");
   # Map and filter result files into final list of result files
   my @list2 = map({ ($_ =~ /$re/g) ? {'absfn' => "$path/$_", 'fn' => $_ }: (); } @$list);
-  # print(Dumper(@list2));
+  $opts{'debug'} && print(Dumper(@list2));
   eval("use XML::Simple;"); # Lazy-load
   my %xopts = ( 'ForceArray' => ['testsuite', 'testcase'], 'KeyAttr' => undef );
   my @suites = (); # Suites to collect
