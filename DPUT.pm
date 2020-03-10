@@ -535,10 +535,11 @@ sub timestr2secs {
 #     my $test_out_html = "./tests/all_results.html";
 #     my $test_out_json = "./tests/all_results.json";
 #     my $test_tmpl     = "/place/for/tmpl/xunit.htreport.template";
+#     if (! -f $test_tmpl) { print("No Test Report Template !\n"); }
 #     # Process ! 'tree' => 1 - recursive
 #     my $suites = DPUT::testsuites_parse($testpath_top, 'tree' => 1);
-#     if (!$suites) { print(STDERR "Test HTML Report generation failed"); }
-#     my $cnt_tot = DPUT::testsuites_test_cnt($allsuites);
+#     if (!$suites) { print(STDERR "Test File search / parsing failed"); }
+#     my $cnt_tot = DPUT::testsuites_test_cnt($suites);
 #     my $out = ''; # Template toolkit output var
 #     # Template parameters and template
 #     my $p = {'all' => $suites, "title" => "Build ... test results", "cnt_tot" => $cnt_tot};
@@ -566,7 +567,7 @@ sub testsuites_parse {
   my %diropts = ('tree' => ($opts{'tree'} || 0));
   my $list = DPUT::dir_list($path, %diropts);
   #print("$re\n");
-  #print(Dumper($list));
+  $opts{'debug'} && print(Dumper($list));
   my @props = ("tests", "time", "name", "disabled", "errors", "failures", "timestamp");
   # Map and filter result files into final list of result files
   my @list2 = map({ ($_ =~ /$re/g) ? {'absfn' => "$path/$_", 'fn' => $_ }: (); } @$list);

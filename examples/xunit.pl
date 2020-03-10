@@ -30,16 +30,16 @@ my $ops = {dumpjson => \&dumpjson, report => \&report, help => \&usage,};
 my $op = shift(@ARGV);
 if (!$op) { usage("Missing subcommand\n"); }
 if (!$ops->{$op}) { usage("'".$op ."' - No such subcommand !\n"); }
-my @optmeta = ('path=s', 'title=s', 'tmplfname=s', 'tree');
+my @optmeta = ('path=s', 'title=s', 'tmplfname=s', 'tree', 'debug');
 my %opts = (
   'path' => '.', 'title' => 'All Test Results',
-  'ttkit' => 'Template', 'tmplfname' => './xunit.htreport.template', 'tree' => 0);
+  'ttkit' => 'Template', 'tmplfname' => './xunit.htreport.template', 'tree' => 0, 'debug' => 0);
 GetOptions (\%opts, @optmeta); # 'ttkit=s'
 # Common pre-ops
 my $testpath = $ENV{'XUNIT_TEST_PATH'} || $opts{'path'};
 my $tmpl = DPUT::file_read($opts{'tmplfname'});
 # 
-my $allsuites = DPUT::testsuites_parse($testpath, 'debug' => 0, 'tree' => $opts{'tree'});
+my $allsuites = DPUT::testsuites_parse($testpath, 'debug' => $opts{'debug'}, 'tree' => $opts{'tree'});
 if (!$allsuites) { die("Could not parse xUnit test files !"); }
 my $cnt_tot = DPUT::testsuites_test_cnt($allsuites);
 my $rc = $ops->{$op}->();
