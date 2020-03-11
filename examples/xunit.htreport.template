@@ -4,18 +4,31 @@
   <meta charset="utf-8">
   <title>xUnit test results</title>
   <link rel="stylesheet" type="text/css" href="">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
   <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0" />
   <!-- http://www.template-toolkit.org/docs/manual/Directives.html -->
   <style>
-th { background-color: black; color: white; text-align: left; }
+/* #CC092F #454545 */
+.spare {color: #555555; background-color: #EEEEEE; bg: #454545; }
+#content {padding: 20px; }
+#header { padding: 5px 20px; margin: 0px;  color: #FFFFFF; background-color: #CC092F;  }
+#footer { margin-top: 50px; }
+h2 { font-weight: bold; }
+tt { font-size: 12px; }
+/* black */
+th { background-color: #CC092F; color: white; text-align: left; padding-left: 5px; }
 table { table-layout: fixed; }
   </style>
 </head>
 
 <body>
-      
-
-<h1>Set of testsuites ([% title %], [% cnt_tot %] tests)</h1>
+<div id="header">
+  <!-- glyphicon-home -->
+  <h1><i id="index" class="glyphicon glyphicon-check" ></i>
+  <span style="font-weight: bold;">Set of testsuites ([% title %], [% cnt_tot %] tests)</span></h1>
+</div>
+<div id="content">
+<!-- <h1>Set of testsuites ([% title %], [% cnt_tot %] tests)</h1> -->
 
 [%  FOREACH suites IN all %]
 <h2> Suite-set: [% suites.name %] ([% suites.tests %] tests from <tt>[%  suites.resfname %]</tt>) </h2>
@@ -36,8 +49,10 @@ table { table-layout: fixed; }
 </tr>
     [% FOREACH case IN suite.testcase %]
 <tr>
-  <td>[% case.name %]</td><td>[% case.classname %]</td>
-  <td>[% case.status %]</td><td>[% (case.error or case.failure) ? '<span style="color: red">FAIL' : '<span style="color: green">PASS' %]</span></td>  <!--<td>[% case.result %]</td>-->
+  <td><tt>[% case.name %]</tt></td><td><tt>[% case.classname %]</tt></td>
+  <td>[% case.status %]</td><td>[% (case.error or case.failure) ?
+    '<span style="color: red; font-weight: bold; "><i class="glyphicon glyphicon-remove-circle" ></i> FAIL' :
+    '<span style="color: green"><i class="glyphicon glyphicon-check" ></i> PASS' %]</span></td>  <!--<td>[% case.result %]</td>-->
   <td> [% case.time %]</td>
 </tr>
 [% END %]
@@ -46,7 +61,7 @@ table { table-layout: fixed; }
 
 
 [% END %]
-
-
+<div id="footer" style="font-size: 8pt">Created with <a href="https://github.com/ohollmen/DPUT">Data Processing Utility toolkit (DPUT)</a></div>
+</div>
 </body>
 </html>
