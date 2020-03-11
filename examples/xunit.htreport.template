@@ -14,7 +14,7 @@
 #header { padding: 5px 20px; margin: 0px;  color: #FFFFFF; background-color: #CC092F;  }
 #footer { margin-top: 50px; }
 h2 { font-weight: bold; }
-tt { font-size: 12px; }
+tt[data-code] { font-size: 12px; }
 /* black */
 th { background-color: #CC092F; color: white; text-align: left; padding-left: 5px; }
 table { table-layout: fixed; }
@@ -49,7 +49,7 @@ table { table-layout: fixed; }
 </tr>
     [% FOREACH case IN suite.testcase %]
 <tr>
-  <td><tt>[% case.name %]</tt></td><td><tt>[% case.classname %]</tt></td>
+  <td><tt data-code="true">[% case.name %]</tt></td><td><tt data-code="true">[% case.classname %]</tt></td>
   <td>[% case.status %]</td><td>[% (case.error or case.failure) ?
     '<span style="color: red; font-weight: bold; "><i class="glyphicon glyphicon-remove-circle" ></i> FAIL' :
     '<span style="color: green"><i class="glyphicon glyphicon-check" ></i> PASS' %]</span></td>  <!--<td>[% case.result %]</td>-->
