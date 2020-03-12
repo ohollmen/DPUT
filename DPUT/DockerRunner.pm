@@ -64,13 +64,16 @@ our $dockerbin = 'docker';
 #        "cmd" => "ls /usr",
 #        "vols" => ["/tmp","/usr", "/placeone:/anotherplace"],
 #        "asuser" => "mrsmith",
-#        #"mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
+#        "mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
 #      };
 #      # Create Docker runner
 #      my $docker = DPUT::DockerRunner->new(%$dcfg);
 #      my $cmd = $docker->run('cmdstring' => 1);
 #      print("Generated docker command: '$cmd'\n");
-# 
+#      # ... later
+#      my $rc = system($cmd);
+#      # If you used "mergeuser" and ONLY generated docker command, clean up temp passwd file
+#      if ($docker->{'etcpasswd'} && -f $docker->{'etcpasswd'}) { unlink($docker->{'etcpasswd'}); }
 
 sub new {
   my ($class, %opts) = @_;

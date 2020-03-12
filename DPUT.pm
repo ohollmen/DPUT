@@ -506,9 +506,13 @@ sub named_parse {
 }
 
 ## Experimental to allow easy conversion of time + unit spec to seconds.
+## Converts a human-friendly time specification with quantity and unit notation (e.g. "2d" for 2 days)
+## to seconds for computer-friendly processing.
+## Options:
+## - ms - Convert to milliseconds instead of usual seconds (basically dur_s *= 1000)
 my $tupatt = qr/^\s*(\d+)\s*([wdhms]){1}$/; # Note: m != month
 sub timestr2secs {
-  my ($tustr) = @_;
+  my ($tustr, %opts) = @_;
   if ($tustr !~ /$tupatt/) { return undef; }
   my %tus = (
     "s" => 1,
@@ -530,7 +534,7 @@ sub timestr2secs {
 # - patt - RegExp pattern for filenames to include as xUnit test results (default: '\w+\.xml$)
 # - tree - Do recursive directory scan for test result files
 # 
-# ## Example
+# ### Example
 # 
 # Full Blown template based tests results processing (on API level, with error checks):
 # 
@@ -614,15 +618,47 @@ sub testsuites_parse {
   }
   return(\@suites);
 }
-# # DPUT::testsuites_test_cnt(\@suites)
+# ## DPUT::testsuites_test_cnt(\@suites)
 # 
 # Find out the total number of individual tests in results as parsed by DPUT::testsuites_parse(...)
+# Return total number of tests.
 sub testsuites_test_cnt {
   my ($suites) = @_;
   my $cnt = 0;
   if (ref($suites) ne 'ARRAY') { die("Suites not in array for test counting !"); }
   map({$cnt += $_->{'tests'}} @$suites);
   return $cnt;
+}
+
+# ## DPUT::path_resolve($path, $fname, %opts)
+# 
+# Look for file (by name $fname) in path by name $path.
+# $path can be passed as array(ref) of paths or as a colon delimited.
+# Resolution stops normally at the first matching path location, even if later
+# paths would match. Option $opts{'all'} forces matching to return all candidates
+# and coerces return value to array(ref).
+# 
+# $fname can also directory name as 
+# 
+# Examples:
+#     # Find finding / resolving "my.cnf" from 2 alternative dirs
+#     my $fname_to_use = DPUT::path_resolve(["/etc/", "/etc/mysql"], "my.cnf");
+#     # ... is same as (whichever is more convenient)
+#     my $fname_to_use = DPUT::path_resolve("/etc/:/etc/mysql", "my.cnf");
+#     # which ls ?
+#     my $fname_to_use = DPUT::path_resolve($ENV{'PATH'}, "ls");
+#     # filename can be relative (with path component) too
+#     my $fname_to_use = DPUT::path_resolve(["/etc/","/home/mrsmith"], "myapp/main.conf");
+#   
+sub path_resolve {
+  my ($path, $fname, %opts) = @_;
+  $path = (ref($path) eq 'ARRAY') ? $path : split(":", $path);
+  if (ref($path) ne 'ARRAY') { die("Could not turn path to array"); }
+  my @m = grep({-e "$_/$fname" ? 1 : 0; } @$path);
+  
+  if (!@m) { return undef; }
+  elsif ($opts{'all'}) { return \@m; }
+  return $m[0];
 }
 
 1;

@@ -1,0 +1,17 @@
+[
+  {
+    "dockerlbl": "centos_5",
+    "dockerimg": "centos_5:0.0.1",
+    "vols" : null
+  }, 
+  {
+    "dockerlbl": "ubu18_compact",
+    "dockerimg": "ubu18_compact:0.0.18",
+    "vols" : ["/usr", "/lib", "/bin"]
+  },
+  {
+    "dockerlbl": "ubu18_yocto_bld",
+    "dockerimg": "ubu18_yocto_bld:0.0.14",
+    "vols" : null
+  } 
+]

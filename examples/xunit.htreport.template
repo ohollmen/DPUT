@@ -2,17 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>xUnit test results</title>
+  <title>xUnit Test Results Report</title>
   <link rel="stylesheet" type="text/css" href="">
+  
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+  
   <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0" />
   <!-- http://www.template-toolkit.org/docs/manual/Directives.html -->
   <style>
 /* #CC092F #454545 */
 .spare {color: #555555; background-color: #EEEEEE; bg: #454545; }
-#content {padding: 20px; }
+#content { margin: 0px; padding: 20px; }
 #header { padding: 5px 20px; margin: 0px;  color: #FFFFFF; background-color: #CC092F;  }
 #footer { margin-top: 50px; }
+body { margin: 0px; padding: 0; font-family: sans-serif; }
+#header h1 { font-weight: bold; }
 h2 { font-weight: bold; }
 tt[data-code] { font-size: 12px; }
 /* black */
@@ -25,7 +29,7 @@ table { table-layout: fixed; }
 <div id="header">
   <!-- glyphicon-home -->
   <h1><i id="index" class="glyphicon glyphicon-check" ></i>
-  <span style="font-weight: bold;">Set of testsuites ([% title %], [% cnt_tot %] tests)</span></h1>
+  <!--<span style="font-weight: bold;">-->Set of testsuites ([% title %], [% cnt_tot %] tests)<!--</span>--></h1>
 </div>
 <div id="content">
 <!-- <h1>Set of testsuites ([% title %], [% cnt_tot %] tests)</h1> -->
