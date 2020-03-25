@@ -266,13 +266,19 @@ sub dockercat_load {
   return $dc;
 }
 
-# ## DPUT::DockerRunner::dockercat_find($arr, $lbl)
+# ## DPUT::DockerRunner::dockercat_find($arr, $lbl, %opts)
 # Find a image definition with image properties by its label (passed as $lbl, "dockerlbl" member in node).
+# Options in %opts:
+# 
+# - by - perform search by attribute given (e.g. 'by' => 'dockerimg')
+# 
+# Search is performed by exact matching.
 # Return Hash-Object for matching image definition or a false for "not found".
 sub dockercat_find {
-  my ($dc, $lbl) = @_;
+  my ($dc, $lbl, %opts) = @_;
   if (ref($dc) ne 'ARRAY') { die("Docker catalog is not in an ARRAY!\n"); }
-  my @m = grep({ $_->{'dockerlbl'} eq $lbl; } @$dc);
+  my $prop = $opts{'by'} || 'dockerlbl';
+  my @m = grep({ $_->{$prop} eq $lbl; } @$dc);
   if (!@m) { return undef; }
   return $m[0];
 }
