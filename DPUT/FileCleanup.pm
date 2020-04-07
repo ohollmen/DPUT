@@ -35,7 +35,7 @@ sub new {
   }
   # NOT mandatory
   # if (!$cfg->{'npatt'}) { die("No name pattern available for cleanup"); }
-  
+  if (!$cfg->{'type'}) {$cfg->{'type'} = 'tree'; } # 'tree'
   bless($cfg, $class);
   
   return($cfg);
@@ -54,7 +54,7 @@ sub find_dirs {
   if ($npatt) { @$files = grep({/$npatt/} @$files); }
   #MUST: Add full path - ( 'abs' => 1 does not work as we filter on basename)
   @$files = map({"$path/$_"} @$files);
-  $prof->{'debug'} &&  print(STDERR scalar(@$files)." Files (post-patt-filter by $prof->{'npatt'})\n");
+  $prof->{'debug'} &&  print(STDERR scalar(@$files)." Files (post-patt-filter by '$prof->{'npatt'}')\n");
   # Dumper($files)
   my @files = ();
   my $fcb = $prof->{'tfilter'};
