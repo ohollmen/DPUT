@@ -1,5 +1,6 @@
 package DPUT::FileCleanup;
 use File::Path;
+use File::Basename;
 use DPUT;
 use Data::Dumper;
 use strict;
@@ -32,7 +33,8 @@ sub new {
   if (!$cfg->{'tfilter'} || (ref($cfg->{'tfilter'}) ne 'CODE')) {
     die("Time spec filter (callback) could not be generated (spec: $cfg->{'tspec'}).");
   }
-  if (!$cfg->{'npatt'}) { die("No name pattern available for cleanup"); }
+  # NOT mandatory
+  # if (!$cfg->{'npatt'}) { die("No name pattern available for cleanup"); }
   
   bless($cfg, $class);
   
@@ -84,7 +86,21 @@ sub find {
   my $files = [];
   if ($fc->{'type'} eq 'subdirs') { $files = $fc->find_dirs(); }
   # NOTE: tfilter must be written to return Object
-  else { $files = DPUT::filetree_filter_by_stat($fc->{'path'}, $fc->{tfilter}, 'useret' => 1); }
+  else {
+    $files = DPUT::filetree_filter_by_stat($fc->{'path'}, $fc->{'tfilter'}, 'useret' => 1) || [];
+    if ($fc->{'npatt'}) {
+      @$files = grep({
+        if (-d $_->{'fn'}) { 0; }
+        else {
+          my $bn = File::Basename::basename($_->{'fn'});
+          if ($bn =~ /$fc->{'npatt'}/) { 1; }
+          else { 0; }
+        }
+        
+      } @$files);
+      
+    }
+  }
   $fc->{'files'} = $files; # Also store
   return $files;
 }
@@ -163,6 +179,8 @@ sub gentimefilt {
 if ($0 =~ /FileCleanup.pm/) {
   print("Running the module ('$0')\n");
   $| = 1;
+  my @optmeta = ("path=s", "tspec=s", "npatt=s", "debug");
+  # GetOptions(\%opts, @optmeta); # 
   #my $cfg = {"path" => "/usr/lib/", "tspec" => "900d", 'npatt' => qr/\.so\b.*/, 'debug' => 1};
   #my $cfg = {"path" => "/usr/lib/", "tspec" => "900d", 'npatt' => "\.so\b.*", 'debug' => 1}; # String RE
   my $cfg = {"path" => "/usr/lib/", "tspec" => "300d", 'npatt' => ".*", 'type' => 'subdirs', 'debug' => 1}; # String RE + 'subdirs'
@@ -174,4 +192,7 @@ if ($0 =~ /FileCleanup.pm/) {
   print(scalar(@$files)." Files from '$cfg->{'path'}', type=$cfg->{'type'}\n");
   print(Dumper($files));
 }
+
+# ## TODO
+# Allow alternative to time and pattern spec and let a callback handle selection for deletion.
 1;
