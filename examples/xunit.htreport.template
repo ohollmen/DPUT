@@ -37,6 +37,8 @@ table { table-layout: fixed; }
     window.onload = function () {
       var ctx = document.getElementById("canvas").getContext('2d');
       var chart = new Chart(ctx, { type: 'line', data: cdata, options: copts });
+      var el = document.getElementById("testcnt");
+      el.innerHTML = cdata.labels.length;
     };
   }
   </script>
@@ -85,7 +87,7 @@ table { table-layout: fixed; }
 
 [%  IF cdata %]
 <h2>Test Trends Data</h2>
-
+<p>Trend on last <span id="testcnt"></span> test runs:</p>
 <canvas id="canvas"></canvas>
 [% END %]
 

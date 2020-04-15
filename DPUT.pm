@@ -198,6 +198,8 @@ sub dir_list {
 ## Do flexible path prefixing
 sub dir_list_path_prefix {
   my ($list, $prefix) = @_;
+  # Check that we do not place extra slashes (mostly for cosmetics)
+  if ($prefix =~ /\/+$/) { $prefix =~ s/\/+$//; }
   @$list = map({"$prefix/$_"} @$list);
 }
 
@@ -210,7 +212,7 @@ sub domainname {
   return $domn;
 }
 
-# ## require_fastjson(%opts)
+# ## DPUT::require_fastjson(%opts)
 # Mandate a fast and size-scalable JSON parser/serializer in current runtime.
 # Our biased favorite for this kind of parser is JSON::XS.
 # Option 'probe' does not load (and possibly fail with exception)
@@ -227,7 +229,7 @@ sub require_fastjson {
   $ver = $JSON::XS::VERSION;
   return $ver;
 }
-# ## file_checksum($fname, %opts)
+# ## DPUT::file_checksum($fname, %opts)
 # Extract MD5 checksum (default) from a file.
 # Doing this inline in code is slightly tedious. This works well as a shortcut.
 # Checksumming is still done efficiently by bot loading the whole content into memory.
@@ -249,7 +251,7 @@ sub file_checksum {
   close($fh);
   return $digest;
 }
-# ## isotime($time)
+# ## DPUT::isotime($time)
 # Generate local ISO timestamp for current moment in time or for another point in time - with optional $time parameter.
 sub isotime {
    my @t = localtime($_[0] ? $_[0] : time());
