@@ -608,8 +608,8 @@ sub testsuites_parse {
     # NOT: $tcs = $x->{"testsuite"}->{""}
     foreach my $s (@{$x->{"testsuite"}}) {
       foreach my $c (@{$s->{'testcase'}}) {
-    	if ($c->{'skipped'}) { $c->{'status'} = "skipped"; }
-    	#if ($c->{'failure'}) { $c->{'status'} = "snafu"; }
+        if ($c->{'skipped'}) { $c->{'status'} = "skipped"; }
+        #if ($c->{'failure'}) { $c->{'status'} = "snafu"; }
       }
     }
     $debug && print(STDERR Dumper($x));
@@ -626,8 +626,31 @@ sub testsuites_test_cnt {
   my ($suites) = @_;
   my $cnt = 0;
   if (ref($suites) ne 'ARRAY') { die("Suites not in array for test counting !"); }
-  map({$cnt += $_->{'tests'}} @$suites);
+  map({ $cnt += $_->{'tests'}; } @$suites);
   return $cnt;
+}
+# ## DPUT::testsuites_pass_fail_cnt(\@suites, %opts)
+# 
+# Find out the numers of passed and failed tests in results as parsed by DPUT::testsuites_parse(...).
+# With $opts{'incerrs'} errors are also included to statistics.
+# Return and hash object(ref) with members pass, total and fail (and optionally 'errs').
+sub testsuites_pass_fail_cnt {
+  my ($suites, %opts) = @_;
+  my $r = {'pass' => 0, 'fail' => 0};
+  if (ref($suites) ne 'ARRAY') { die("Suites not in array for test counting !"); }
+  my $cnt = 0;
+  map({
+    $cnt += $_->{'tests'};
+    #print("Suite: $_->{'resfname'}\n");
+    #print(Dumper($_)); # suite
+    $r->{'fail'} += int($_->{failures});
+    $r->{'errs'} += int($_->{errors});
+    # NOTHERE: $r->{'pass'} += (int($_->{tests}) - int($_->{'failures'}));
+  } @$suites);
+  $r->{'pass'} = $cnt - $r->{'fail'};
+  $r->{'total'} = $cnt;
+  if (!$opts{'incerrs'}) { delete($r->{'errs'});}
+  return $r;
 }
 
 # ## DPUT::path_resolve($path, $fname, %opts)

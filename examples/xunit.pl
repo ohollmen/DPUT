@@ -26,7 +26,7 @@ use DPUT;
 
 use strict; use warnings;
 $Data::Dumper::Sortkeys = 1;
-my $ops = {dumpjson => \&dumpjson, report => \&report, help => \&usage,};
+my $ops = {dumpjson => \&dumpjson, report => \&report, help => \&usage, passfail => \&pf_counts};
 my $op = shift(@ARGV);
 if (!$op) { usage("Missing subcommand\n"); }
 if (!$ops->{$op}) { usage("'".$op ."' - No such subcommand !\n"); }
@@ -61,12 +61,21 @@ sub report {
   # Produces output to stdout, NOT return the content (like other toolkits)
   print($out);
 }
+# Compute pass/fail counts
+sub pf_counts {
+  my $cnt = DPUT::testsuites_test_cnt($allsuites);
+  print("$cnt tests\n");
+  my $pfstat = DPUT::testsuites_pass_fail_cnt($allsuites);
+  print(to_json($pfstat, {pretty => 1}));
+}
 sub usage {
   my ($msg) = @_;
   if ($msg) { print(STDERR "$msg\n"); }
+  my @ops = keys(%$ops);
+  my $opsstr = join("|", @ops);
   my $usage = <<EOT;
-Usage (w. subcommands): $0 dumpsjon|report ...
-(Use one of subcommands: dumpjson, report)
+Usage (w. subcommands): $0 $opsstr ...
+(Use one of subcommands: $opsstr)
 Examples:
   # Produce a JSON dump of all xUnit files parsed from path ../tests to STDOUT
   $0 dumpjson --path ../tests
