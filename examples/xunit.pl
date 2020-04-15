@@ -30,10 +30,10 @@ my $ops = {dumpjson => \&dumpjson, report => \&report, help => \&usage, passfail
 my $op = shift(@ARGV);
 if (!$op) { usage("Missing subcommand\n"); }
 if (!$ops->{$op}) { usage("'".$op ."' - No such subcommand !\n"); }
-my @optmeta = ('path=s', 'title=s', 'tmplfname=s', 'tree', 'debug');
+my @optmeta = ('path=s', 'title=s', 'tmplfname=s', 'tree', 'debug', 'tcdata');
 my %opts = (
   'path' => '.', 'title' => 'All Test Results',
-  'ttkit' => 'Template', 'tmplfname' => './xunit.htreport.template', 'tree' => 0, 'debug' => 0);
+  'ttkit' => 'Template', 'tmplfname' => './xunit.htreport.template', 'tree' => 0, 'debug' => 0, 'tcdata' => undef);
 GetOptions (\%opts, @optmeta); # 'ttkit=s'
 # Common pre-ops
 my $testpath = $ENV{'XUNIT_TEST_PATH'} || $opts{'path'};
@@ -52,8 +52,15 @@ sub dumpjson {
 sub report {
   my $config = {}; # Template toolkit config Params - None needed to carry out basic templating
   my $p = {'all' => $allsuites, "title" => $opts{'title'}, 'cnt_tot' => $cnt_tot}; # Template params
-  my $out;
+  my $testdata = {
+    "labels" => [1,2,3], datasets => [
+      {label => "Pass", data => [0,2, 5], borderColor => "#008000"},
+      {label => "Fail", data => [5, 3, 0], borderColor => "#ED3417"},
+    ]
+  };
+  if ($opts{'tcdata'}) { $p->{'cdata'} = to_json($testdata, {pretty => 1}); }
   # Dispatch templating based on config ?
+  my $out;
   my $tm = Template->new($config);
   my $ok = $tm->process(\$tmpl, $p, \$out);
   if (!$ok) { die("failed to run templating !"); }
