@@ -53,9 +53,9 @@ sub report {
   my $config = {}; # Template toolkit config Params - None needed to carry out basic templating
   my $p = {'all' => $allsuites, "title" => $opts{'title'}, 'cnt_tot' => $cnt_tot}; # Template params
   my $testdata = {
-    "labels" => [1,2,3], datasets => [
-      {label => "Pass", data => [0,2, 5], borderColor => "#008000"},
-      {label => "Fail", data => [5, 3, 0], borderColor => "#ED3417"},
+    "labels" => [1,2,3,4,5], datasets => [
+      {label => "Pass", data => [0, 2, 0, 5, 4], borderColor => "#008000"},
+      {label => "Fail", data => [5, 3, 5, 0, 1], borderColor => "#ED3417"},
     ]
   };
   if ($opts{'tcdata'}) { $p->{'cdata'} = to_json($testdata, {pretty => 1}); }
