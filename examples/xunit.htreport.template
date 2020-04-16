@@ -32,7 +32,7 @@ table { table-layout: fixed; }
   [% END %]
   //animation: {duration: 3000},
   var copts = { responsive: true, legend: {position: 'top', display: true}};
-  // data should be: {labels: [], datasets: [ label: "", data: [], borderWidth: 2, borderColor: ""]};
+  // data should be: {labels: [], datasets: [ { label: "", data: [], borderWidth: 2, borderColor: ""} ]};
   if (cdata) {
     window.onload = function () {
       var ctx = document.getElementById("canvas").getContext('2d');
@@ -48,11 +48,18 @@ table { table-layout: fixed; }
 <div id="header">
   <!-- glyphicon-home -->
   <h1><i id="index" class="glyphicon glyphicon-check" ></i>
-  <!--<span style="font-weight: bold;">-->Set of testsuites ([% title %], [% cnt_tot %] tests)<!--</span>--></h1>
+  <!--<span style="font-weight: bold;">-->Set of Unit Test Suites ([% title %], [% cnt_tot %] tests)<!--</span>--></h1>
 </div>
 <div id="content">
 <!-- <h1>Set of testsuites ([% title %], [% cnt_tot %] tests)</h1> -->
+[%  IF cdata %]
+<ul>
+<li><a href="#utcurr">Current Unit Test Results</a></li>
+<li><a href="#uttrend">Trend Chart for Recent Test Runs</a></li>
+</ul>
+[% END %]
 
+<a name="utcurr" ></a>
 [%  FOREACH suites IN all %]
 <h2> Suite-set: [% suites.name %] ([% suites.tests %] tests from <tt>[%  suites.resfname %]</tt>) </h2>
 <!-- <p>From result file '<tt>[%  suites.resfname %]</tt>'</p> -->
@@ -86,6 +93,7 @@ table { table-layout: fixed; }
 [% END %]
 
 [%  IF cdata %]
+<a name="uttrend" ></a>
 <h2>Test Trends Data</h2>
 <p>Trend on last <span id="testcnt"></span> test runs:</p>
 <canvas id="canvas"></canvas>
