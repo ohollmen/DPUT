@@ -201,7 +201,7 @@ sub setup_accts {
 # Run Docker with preconfigured params or *only* return docker run command (string) for more "manual" run.
 # Options in opts:
 # 
-# - cmdstring - Trigger return of command string only *without* actually running container
+# - cmdstring - Trigger return of command string only *without* actually running container (running is done by other means at caller side)
 # 
 # Note: The command to run inside docker will not be quoted.
 # Return either docker command string (w. option 'cmdstring') or return code of actual docker run.
@@ -232,10 +232,10 @@ sub run {
   my $rc = system($cmd); # `$cmd`
   return $rc;
 }
-# ## $docker->cmd($new);
+# ## $docker->cmd($cmd);
 # 
-# Force command to be set after construction. Especially useful if $cmd is not known at construction time and for example
-# dummy command was used at that time. No validation on command is done
+# Force command to be run in docker to be set (overriden) after construction. Especially useful if $cmd is not known at construction time and for example
+# dummy command was used at that time. No validation on command is done.
 sub cmd {
   my ($self, $cmd) = @_;
   $self->{'cmd'} = $cmd;
