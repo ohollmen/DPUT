@@ -135,6 +135,51 @@ sub run_parallel {
   return $drun;
   
 }
+## Helper to chunk original array to approximately $grpcnt (subject for rounding by non-even divisions).
+## Takes care of not being destrictive to $arr_org (Makes a shallow copy before chunking).
+## Return 2-dimensional array of chunks.
+sub arr_chunk {
+  my ($arr_org, $grpcnt) = @_;
+  $grpcnt = $grpcnt || 3;
+  my $itemcnt = int(scalar(@$arr_org) / $grpcnt);
+  my @arr_copy = @$arr_org;
+  #print("Items per batch: $itemcnt\n");
+
+  my @arr2d = ();
+  while (my @subarr = splice(@arr_copy, 0, $itemcnt) ) {
+    #print(to_json(\@subarr)."\n");
+    push(@arr2d, \@subarr);
+  }
+  return(\@arr2d);
+}
+
+# ## $drun->run_serpar($dataset, %opts);
+# Run Task sub-parallel in grouped batches giving effectively a mix of series and parallel processing.
+# Opts in %opts:
+# - grpcnt - Number of sub-groups to chunk the $dataset array into
+# Return results ($res) of individual chunks in an array of results (see runwait() for description).
+sub run_serpar {
+  my ($drun, $items, %opts) = @_;
+  my $grpcnt = $opts{'grpcnt'} || 3;
+  if ($grpcnt < 2) { die("run_serpar does not make sense with grpcnt < 2 ! Cancelling run."); }
+  my $grpsize = scalar(@$items);
+  # Common
+  #my $cb = $drun->{'cb'};
+  $drun->{'autowait'} = 1; # Force autowait
+  # Chunk
+  my $chunks = arr_chunk($items, $grpcnt);
+  my $i = 0;
+  my @ress = ();
+  for my $itemchunk (@$chunks) {
+    my $sicnt = scalar(@$itemchunk);
+    $drun->{'debug'} && print(STDERR "Run Chunk($i) with $sicnt items/$grpsize (total)\n");
+    # Run items in a chunk
+    my $res = $drun->run_parallel($itemchunk);
+    push(@ress, $res);
+    $i++;
+  }
+  return \@ress;
+}
 # ## $drun->runwait();
 # Wait for the child processes spawned earlier to complete.
 # Allows a completion callback (configured as 'ccb' in constructor options) to be run on each data item.
