@@ -33,6 +33,7 @@ sub new {
   if (!$cfg->{'tfilter'} || (ref($cfg->{'tfilter'}) ne 'CODE')) {
     die("Time spec filter (callback) could not be generated (spec: $cfg->{'tspec'}).");
   }
+  if (!$cfg->{'debug'}) { $cfg->{'debug'} = 0; }
   # NOT mandatory
   # if (!$cfg->{'npatt'}) { die("No name pattern available for cleanup"); }
   if (!$cfg->{'type'}) {$cfg->{'type'} = 'tree'; } # 'tree'
@@ -168,7 +169,7 @@ sub rm {
       $type = 'dir';
       $ok = File::Path::remove_tree($fnode->{'fn'}, {'safe' => $safe});
     }
-    if (!$ok && $errign) { print(STDERR "Warn: No File/Dir: '$fn'. May have been previously deleted by rmtree().\n"); next; }
+    if (!$ok && $errign) { print(STDERR "Warning: File/Dir: '$fn'. May have been previously deleted by rmtree().\n"); next; }
     if (!$ok) { die("Error deleting $type '$fnode->{'fn'}' - $!  (quitting for perm. checks)\n"); }
   }
 }
