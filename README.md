@@ -4,18 +4,21 @@ This is the top-level, "umbrella" module of "Data Processing Utility Toolkit" th
 butter functionality for modern SW development and devops tasks:
 
 - Reading/Parsing and Writing/Serializing into files (esp. JSON)
-- Running tasks in parallel as an optimization (supporting data driven parallell running)
+- Running tasks in parallel as a processing speedup optimization (supporting data driven parallel running)
 - Retrying operations under unreliable conditions, trying to create a reliable app on top of unreliable
   infrastructure or environment (e.g. glitchy network conditions)
-- Sync/Copy large quantities of files across network or in local filesystems
-- Create Command line applications easily with minimum boilerplate
-- Extracting Markdown documentation within code files to an aggregated "publishable" documentation
-- Auditing toolchains by recording which tools and their versions were used by data processing
+- Sync/Copy large quantities of files across network or in local filesystems (using **rsync**)
+- Create Command line applications easily with minimum boilerplate (Supporting subcommands and reuse of CLI parsing specs)
+- Extracting **Markdown documentation** within code files to an aggregated "publishable" documentation
+- Auditing toolchains by recording which tools and their versions were used by data processing (e.g. python, git, make, gcc)
+- Loading, interpreting and reporting **xUnit** (**jUnit**) test results (from xUnit XML files)
+- Running **Docker** workloads in an easy and structured way.
 
 This top-level module is not Object oriented in any way. It contains the most elementary operations like file reading/writing,
 listing directories (also recursively) on a very high level.
 
 ## Reading and writing files
+
 - *write - write content or append content to a (existing or new) file.
 - *read - Read file content into a variable (scalar or data structure for JSON, YAML, ...)
 
@@ -49,26 +52,27 @@ Perl format is written with small indent and no perl variable name (e.g. $VAR1)
 JSON is written in "pretty" format assuming it benefits out of human readability.
 Return $ok (actually number of bytes written)
 
-## file_read($fname, %opts)
+## DPUT::file_read($fname, %opts)
 Read file content from a file by $fname.
 Options in opts:
 - 'lines' - Pre-split to lines and return array(ref) instead of scalar content
 - 'rtrim' - Get rid of trailing newline
 Return file content as scalar string (default) or array(ref) (with option 'lines')
 
-## dir_list($path, %opts)
+## DPUT::dir_list($path, %opts)
 List a single directory or subdirectory tree.
 $path can be any resolvable path (relative or absolute).
 Options:
 - 'tree' - Create recursive listing
 - 'preprocess' - File::Find preprocess for tree traversal (triggered by 'tree' option)
+- 'abs' - Return absolute paths
 Return the files as array(ref)
 
 ## domainname()
 Probe current DNS domainname (*not* NIS domainname) for the host app is running on.
 Return full domain part of current host (e.g. passing host.example.com => example.com).
 
-## require_fastjson(%opts)
+## DPUT::require_fastjson(%opts)
 Mandate a fast and size-scalable JSON parser/serializer in current runtime.
 Our biased favorite for this kind of parser is JSON::XS.
 Option 'probe' does not load (and possibly fail with exception)
@@ -76,13 +80,13 @@ Return true value with version of JSON::XS on success, or fail with exception.
 If option 'probe' was passed, only detection of JSON::XS presence from current runtime is done
 and no exceptions are ever thrown.
 
-## file_checksum($fname, %opts)
+## DPUT::file_checksum($fname, %opts)
 Extract MD5 checksum (default) from a file.
 Doing this inline in code is slightly tedious. This works well as a shortcut.
 Checksumming is still done efficiently by bot loading the whole content into memory.
 Return MD5 Checksum.
 
-## isotime($time)
+## DPUT::isotime($time)
 Generate local ISO timestamp for current moment in time or for another point in time - with optional $time parameter.
 
 ## DPUT::csv_to_data($csv, $fh, %opts);
@@ -130,7 +134,7 @@ Options in %opts:
 Return a complete host + credentials object (as seen above) - that is hopefully usable
 for establishing connection to the remote sever (e.g. HTTP+REST, MySQL, MongoDB, LDAP, ...)
 
-DPUT::filetree_filter_by_stat($dirpath, $filtercb, %opts);
+## DPUT::filetree_filter_by_stat($dirpath, $filtercb, %opts);
 Collect a list of ("filtered-in") files from a directory tree based on stat results.
 Creates a list of filenames that filter callback indicates as "matching".
 Caller should pass:
@@ -141,6 +145,82 @@ Caller should pass:
   - useret - Place return value of callback to file list generated (instead of default, which is filename)
 Using 'useret' means that filtercb function is written so that it returns a custom values that will be placed in results.
 Return list of filenames or custom callback generated objects / items.
+
+## DPUT::testsuites_parse($path, %opts)
+
+Parse xUnit XML test result files by name pattern (default '\w\.xml$').
+Return files as data structure (for generating report or other kind of presentation).
+Options in %opts
+- debug - Output verbose info on processing
+- patt - RegExp pattern for filenames to include as xUnit test results (default: '\w+\.xml$)
+- tree - Do recursive directory scan for test result files
+
+### Example
+
+Full Blown template based tests results processing (on API level, with error checks):
+
+    use DPUT;
+    use Template; # An example templating engine
+    my $testpath_top  = "./tests"; # Dirtree to scan from (See below: 'tree' => 1)
+    my $test_out_html = "./tests/all_results.html";
+    my $test_out_json = "./tests/all_results.json";
+    my $test_tmpl     = "/place/for/tmpl/xunit.htreport.template";
+    if (! -f $test_tmpl) { print("No Test Report Template !\n"); }
+    # Process ! 'tree' => 1 - recursive
+    my $suites = DPUT::testsuites_parse($testpath_top, 'tree' => 1);
+    if (!$suites) { print(STDERR "Test File search / parsing failed"); }
+    my $cnt_tot = DPUT::testsuites_test_cnt($suites);
+    my $out = ''; # Template toolkit output var
+    # Template parameters and template
+    my $p = {'all' => $suites, "title" => "Build ... test results", "cnt_tot" => $cnt_tot};
+    my $tmpl = DPUT::file_read($test_tmpl);
+    if (!$tmpl) { print(STDERR "Test HTML template loading failed"); }
+    # Run templating (using params and loaded template)
+    my $tm = Template->new({}); # Empty config (seems to work)
+    my $ok = $tm->process(\$tmpl, $p, \$out);
+    if (!$ok) { print(STDERR "Test HTML Report generation failed"); }
+    # Write both HTML and JSON
+    DPUT::file_write($test_out_html, $out); # HTML report
+    DPUT::file_write($test_out_json, $suites, 'fmt' => 'json'); # JSON (serializes json automatically)
+    
+## Info on xUnit/jUnit format:
+
+- https://llg.cubic.org/docs/junit/
+- https://www.ibm.com/support/knowledgecenter/SSQ2R2_9.1.1/com.ibm.rsar.analysis.codereview.cobol.doc/topics/cac_useresults_junit.html
+
+
+
+## DPUT::testsuites_test_cnt(\@suites)
+
+Find out the total number of individual tests in results as parsed by DPUT::testsuites_parse(...)
+Return total number of tests.
+
+## DPUT::testsuites_pass_fail_cnt(\@suites, %opts)
+
+Find out the numers of passed and failed tests in results as parsed by DPUT::testsuites_parse(...).
+With $opts{'incerrs'} errors are also included to statistics.
+Return and hash object(ref) with members pass, total and fail (and optionally 'errs').
+
+## DPUT::path_resolve($path, $fname, %opts)
+
+Look for file (by name $fname) in path by name $path.
+$path can be passed as array(ref) of paths or as a colon delimited path string.
+Resolution stops normally at the first matching path location, even if later
+paths would match. Option $opts{'all'} forces matching to return all candidates
+and coerces return value to array(ref).
+
+$fname can also directory name as 
+
+Examples:
+    # Find finding / resolving "my.cnf" from 2 alternative dirs
+    my $fname_to_use = DPUT::path_resolve(["/etc/", "/etc/mysql"], "my.cnf");
+    # ... is same as (whichever is more convenient)
+    my $fname_to_use = DPUT::path_resolve("/etc/:/etc/mysql", "my.cnf");
+    # which ls ?
+    my $fname_to_use = DPUT::path_resolve($ENV{'PATH'}, "ls");
+    # filename can be relative (with path component) too
+    my $fname_to_use = DPUT::path_resolve(["/etc/","/home/mrsmith"], "myapp/main.conf");
+  
 
 # DPUT::CLRunner - Design command line apps and interfaces with ease.
 
@@ -268,6 +348,18 @@ run_parallel() internally keeps track of processes vs. the data item processed.
 On the high level this enables producing collective results by completion callback 'ccb'
 and retrieveing the collective results by res() method.
 
+## $drun->run_serpar($dataset, %opts);
+Run Task sub-parallel in grouped batches giving effectively a mix of series and parallel processing.
+Opts in %opts:
+- grpcnt - Number of sub-groups to chunk the $dataset array into (must be given). Set grpcnt as minimum 2
+  (Otherwise run reduces to run_paralell()).
+
+During individual parallel group batch run 'autowait' option is forced inside this implementation,
+so calling runwait() explicitly or setting 'autowait' is not applicable here (so do not call / set either).
+
+Return results ($res) of individual chunks in an array of results (see runwait() for description and note this method
+returns multiple results items in an array, no single like runwait() does).
+
 ## $drun->runwait();
 Wait for the child processes spawned earlier to complete.
 Allows a completion callback (configured as 'ccb' in constructor options) to be run on each data item.
@@ -282,7 +374,7 @@ Completion callback has signature ($item, $res, $pid) with follwing meanings
 
 The $res starts out as an empty hash/object (refrence, i.e. $res = {}) and completion callback needs to
 establish its own application (or "run case") specific organization within $res object. Completion callback
-will basically "fill in" this object the way it wants to allow main application to have access to results.
+("ccb") will basically "fill in" this object the way it wants to allow main application to have access to results.
 $res is returned by runwait() or retrievable by res() method.
 
 ## $drun->run_forked_single()
@@ -413,11 +505,17 @@ DPUT::Retrier
 ## DPUT::Retrier->new(%opts)
 Construct a Retrier.
 Settings:
+
 - cnt - Number of times to retry (default: 3)
 - delay - delay between the tries (seconds, default: 10)
 - args - Arguments (in array-ref) to pass to function to be run (Optional, no default).
 - debug - A debug flag / level for enabling module internal messages
   (currently treated as flag with now distinct levels, default: 0)
+- badret - A custom callback defining whether return value of main retry callback is a bad return value.
+- raw - A low level power-user flag to return the actual "raw" value of the retry callback (e.g. http result handle,
+  DB connection handle, FTP connection or some other reference, which are all "true" / valid $ok values).
+  NOTE: This is only safe when internally used badret callback does not "invert" the value and both retry callback and badret
+  callback are geared around "$ok" (perl-style, not shell style) return convention.
 
 Return instance reference.
 The retry options can be passed either with keyword -style convention
@@ -469,18 +567,23 @@ TODO: Allow passing max time to try.
 
 # DPUT::ToolProbe - Detect command-line tool versions
 
+Probes version of a CL tool based on the universally accepted **--version** command line flag
+supported by about every open source tool.
+
 ## Tool definitions
 
 Tool definition consists of following members:
 - cmd - The command (basename) for tool (e.g. 'perl', without path)
-- patt - Regular expression for detecting and extracting version
+- patt - Regular expression for detecting and extracting version from version info output
 - stderr - Flag for extracting version information from stderr (instead of default stdout)
 
 ## Adding new tool definitions
+
 The module comes with a basic set of tool definitions
 Note, this is kept module-global to allow simple
 additions by (e.g.):
-push(@{$SWBuilder::toolprobeinfo}, {"cmd" => "repo", "" => ""})
+
+    push(@{$SWBuilder::toolprobeinfo}, {"cmd" => "repo", "" => ""})
 
 # Note on $PATH
 
@@ -490,11 +593,16 @@ The reported results of ToolProbe are only valid for the $PATH that was used at 
 the results may change.
 
 # TODO
-Consider adding (or just documenting) semantic versioning functionality to compare extracted version
+
+- Consider adding (or just documenting) semantic versioning functionality to compare extracted version
 to some feature "threshold version" (i.e. version > 1.5.5 supports shortcut feature X and in versions below
 that we have to multiple steps to accopmlish the same result).
+- Consider turning toolinfo report to new (more comprehensive) format recording also the $PATH based on
+  which tool detection was done.
 
 Set by $DPUT::ToolProbe::debug =1;
+
+## DPUT::ToolProbe::add($newtool)
 
 Convenience method for adding a new tool definition.
 Definition is added to the class -held defintion collection
@@ -503,20 +611,31 @@ variable ($toolprobeinfo) with validation. Same as
     push(@$DPUT::ToolProbe::toolprobeinfo, $newtool);
 
 Except the latter low level way does not validate %$$newtool.
+Example of use:
+
+    my $newtool = {"cmd" => "ls", "patt" => "(\d+)\.(\d+)"};
+    DPUT::ToolProbe::add($newtool)
 
 Create RegExp for tool definition based on Regexp options ('reopt').
 
-## DPUT::ToolProbe::detect()
+## DPUT::ToolProbe::detect(%opts)
+
 Probe tool command version and path from which it was found.
 This happens for all the tools registered (See doc on how to add more tools).
 Assume tools to support conventional --version option.
+
+Options:
+- dieonmissing - Trigger an exception on *any* missing tool
+- hoh - produce report in pre-indexed "hash of hashes" format (indexed by 'cmd' for fast lookup by command name)
+
 Return an hash of hashes containing:
-- outer keys rflecting the tool name (from tool probe info $tool->{'cmd'})
+- outer keys reflecting the tool name (from tool probe info $tool->{'cmd'})
 - inner object containing members:
   - path - Full path to tool
   - version - Version of the tool (extracted)
 
- 
+If tool is missing 'path' and 'version' it could not be found in the system.
+
 
 # DPUT::RSyncer - perform one or more copy tasks with rsync
 
@@ -593,6 +712,14 @@ from task node 'rv' (return value).
 
 # DPUT::DockerRunner - Run docker in automated context with preconfigured options
 
+Allows
+- Running a command under docker or generating the (potentially complex and long) full docker command
+- Setting user, group, current workdir
+- Mapping Docker bind volumes (the easy way, partially automated)
+- Adding users from host machine to container (not image) to share files with proper ownerships between
+  host and container
+- Pass env vars from host environment to container
+
 ## DPUT::DockerRunner->new(%opts);
 
 Create new docker runner with options to run docker.
@@ -604,8 +731,9 @@ Keyword Options in %opts:
   - Passing a explicit path sets working dir to that value
   - passing the kw param, but with false value does not set any explicit working dir. Docker sets the cwd for you.
   - When kw param is completely left out, container cwd is set to current host cwd
-- mergeuser - User to add as resolvable user in container /etc/passwd using volume mapping (e.g. "compute").
-- asuser - Run as user (resolvable on local system **and** docker.
+- mergeuser - User to add as resolvable user in container /etc/passwd using volume mapping (e.g. user "compute").
+- asuser - Run as user (resolvable on local system **and** docker) by username (Not uidnumber).
+- asgroup - Run as group (either group name or gidnumber)
 - vols - an array of volume mappings. Simple 1:1 mappings with form:to the same can be given without delimiting ":".
 
 Todo:
@@ -618,8 +746,8 @@ they are valid.
 "mergeuser" parameter can take 3 forms:
 
 - bare username resolvable on host (e.g. "mrsmith")
-- a valid passwd file line (with 7 ":" delimited fields)
-- an array(ref) with 7 elements describing valid user
+- a valid passwd file line string (with 7 ":" delimited fields)
+- an array(ref) with 7 elements describing valid user (with passwd file order and conventions)
 
 ### Volumes
 
@@ -627,6 +755,7 @@ Volume mappings (in "vols") are passed (simply in array, not hash object) in a d
 "/path/on/host:/path/inside/docker. They are formulated into docker -v options.
 
 ### Example of running
+
 Terse use case with params set and run executed on-the-fly:
 
      my $rc = DPUT::DockerRunner->new('img' => 'myimage', 'cmd' => 'compute.sh')->run();
@@ -638,17 +767,20 @@ More granular config passed and (only) command is generated (No actual docker ru
        "cmd" => "ls /usr",
        "vols" => ["/tmp","/usr", "/placeone:/anotherplace"],
        "asuser" => "mrsmith",
-       #"mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
+       "mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
      };
      # Create Docker runner
      my $docker = DPUT::DockerRunner->new(%$dcfg);
      my $cmd = $docker->run('cmdstring' => 1);
-     print("Generated command: '$cmd'\n");
-
+     print("Generated docker command: '$cmd'\n");
+     # ... later
+     my $rc = system($cmd);
+     # If you used "mergeuser" and ONLY generated docker command, clean up temp passwd file
+     if ($docker->{'etcpasswd'} && -f $docker->{'etcpasswd'}) { unlink($docker->{'etcpasswd'}); }
 
 ## DPUT::DockerRunner::getaccount($username);
 
-Wrapper for Getting a local (or any resolvable, e.g. NIS) account.
+Wrapper for Getting a local (or any resolvable, e.g. NIS/LDAP) user account.
 Returns an array of 7 elements, with fields of /etc/passwd
 
 ## DPUT::DockerRunner::userhasdocker($optional_docker_executable_name);
@@ -662,14 +794,50 @@ Return docker absoute path (a true value) or false if docker is not detected.
 
 Add (merge) an account to a generated temporary passwd file on the host and map it into use (as a volume)
 inside the docker container.
-Returns true for success 0 for (various) errors (with Warning printed to STDERR, no exceptions are thrown).
+Options:
+
+- host - Optional remote host to prepare the file on (if it is known docker job will run there instead of current host).
+
+Returns true (1) for success and false (0) for (various) errors (with Warning printed to STDERR, no exceptions are thrown).
 
 ## $docker->run(%opts);
 
 Run Docker with preconfigured params or *only* return docker run command (string) for more "manual" run.
 Options in opts:
 
-- cmdstring - Trigger return of command string only *without* actually running container
+- cmdstring - Trigger return of command string only *without* actually running container (running is done by other means at caller side)
 
-Return either docker command string (w. option cmdstring) or return code of actual docker run.
+Note: The command to run inside docker will not be quoted.
+Return either docker command string (w. option 'cmdstring') or return code of actual docker run.
+
+## $docker->cmd($cmd);
+
+Force command to be run in docker to be set (overriden) after construction. Especially useful if $cmd is not known at construction time and for example
+dummy command was used at that time. No validation on command is done.
+
+## $docker->vols_add(\@vols)
+
+Adds to volumes with relevant checks (just type checks, no overlap check is done).
+Any errors in parameters will only trigger warnings (not treated as errors).
+
+## DPUT::DockerRunner::dockercat_load($fname)
+Load and validate Docker Catalog with mappings from a symbolic "friendly name" of image ("dockerlbl") to
+image url and other info regarding colume (e.g. "vols" to use, Image may depend on these).
+Return Array of Hash-Objects.
+
+## DPUT::DockerRunner::dockercat_find($arr, $lbl)
+Find a image definition with image properties by its label (passed as $lbl, "dockerlbl" member in node).
+Return Hash-Object for matching image definition or a false for "not found".
+
+TODO: Run Docker in wrapped, pre-configured way.
+- Allow referring to image with high-level label-name
+- Allow defaulting to particular image in main config
+- Resolve config from one of possible path locations
+- Default to running as the $ENV{'USER'}, in current dir.
+- Default to using current dir (User should provide current dir to be mounted by config "vols")
+Params coming here:
+- int - Use Interactive Mode
+- dcat - Docker (Image) catalog
+- imglbl - Image (high-level, "nice-name") label (to translate to image url via docker catalog)
+TODO: Normalize these into methods to allow normal DockerRunner construction to use these.
 
