@@ -156,8 +156,14 @@ sub arr_chunk {
 # ## $drun->run_serpar($dataset, %opts);
 # Run Task sub-parallel in grouped batches giving effectively a mix of series and parallel processing.
 # Opts in %opts:
-# - grpcnt - Number of sub-groups to chunk the $dataset array into
-# Return results ($res) of individual chunks in an array of results (see runwait() for description).
+# - grpcnt - Number of sub-groups to chunk the $dataset array into (must be given). Set grpcnt as minimum 2
+#   (Otherwise run reduces to run_paralell()).
+# 
+# During individual parallel group batch run 'autowait' option is forced inside this implementation,
+# so calling runwait() explicitly or setting 'autowait' is not applicable here (so do not call / set either).
+# 
+# Return results ($res) of individual chunks in an array of results (see runwait() for description and note this method
+# returns multiple results items in an array, no single like runwait() does).
 sub run_serpar {
   my ($drun, $items, %opts) = @_;
   my $grpcnt = $opts{'grpcnt'} || 3;
@@ -194,7 +200,7 @@ sub run_serpar {
 #
 # The $res starts out as an empty hash/object (refrence, i.e. $res = {}) and completion callback needs to
 # establish its own application (or "run case") specific organization within $res object. Completion callback
-# will basically "fill in" this object the way it wants to allow main application to have access to results.
+# ("ccb") will basically "fill in" this object the way it wants to allow main application to have access to results.
 # $res is returned by runwait() or retrievable by res() method.
 sub runwait {
   my ($drun) = @_;
