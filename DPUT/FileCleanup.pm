@@ -33,6 +33,7 @@ sub new {
   if (!$cfg->{'tfilter'} || (ref($cfg->{'tfilter'}) ne 'CODE')) {
     die("Time spec filter (callback) could not be generated (spec: $cfg->{'tspec'}).");
   }
+  if (!$cfg->{'debug'}) { $cfg->{'debug'} = 0; }
   # NOT mandatory
   # if (!$cfg->{'npatt'}) { die("No name pattern available for cleanup"); }
   if (!$cfg->{'type'}) {$cfg->{'type'} = 'tree'; } # 'tree'
@@ -41,6 +42,8 @@ sub new {
   return($cfg);
 }
 
+# ## $fc->find_dirs()
+# Find dirs on one level (given by profile 'path')
 sub find_dirs {
   my ($prof) = @_;
   my $path = $prof->{'path'};
@@ -71,6 +74,31 @@ sub find_dirs {
   return \@files;
 }
 
+# ## $fc->find_dirs_deep();
+# Find dirs by namepattern and time criteria in the depth of the directory tree.
+sub find_dirs_deep {
+  my ($fc) = @_;
+  
+  # callback for both time and pattern. Note named sub will trigger: $fc will not stay shared
+  my $custfilter = sub {
+    #no strict 'vars';
+    my ($s, $an) = @_; # Stats, Abs name
+    if (! -d $an) { return 0; }
+    my $bn = File::Basename::basename($an);
+    my $tf = $fc->{'tfilter'};
+    ($fc->{'debug'} > 1) && print(STDERR "Check $an\n");
+    if ($fc->{'npatt'} && $bn !~ /$fc->{'npatt'}/) { return 0; }
+    if ($tf) {
+      my $rv = $tf->($s, $an);
+      return $rv;
+    }
+    return 0;
+  };
+  my $files = DPUT::filetree_filter_by_stat($fc->{'path'}, $custfilter, 'useret' => 1) || []; # \&custfilter
+  $fc->{'files'} = $files; # Also store
+  return $files;
+}
+
 # ## $fc->find()
 # 
 # Find files to cleanup.
@@ -85,6 +113,7 @@ sub find {
   my ($fc) = @_;
   my $files = [];
   if ($fc->{'type'} eq 'subdirs') { $files = $fc->find_dirs(); }
+  elsif ($fc->{'type'} eq 'deepdirs') { $files = $fc->find_dirs_deep(); }
   # NOTE: tfilter must be written to return Object
   else {
     $files = DPUT::filetree_filter_by_stat($fc->{'path'}, $fc->{'tfilter'}, 'useret' => 1) || [];
@@ -121,6 +150,7 @@ sub rm {
   my $files = $opts{'files'} || $fc->{'files'};
   if (!$files) { print(STDERR "No files (or dirs) to remove / delete !"); return; }
   my $safe = $fc->{'force'} ? 0 : 1;
+  my $errign = $fc->{'deepdirs'} ? 1 : 0;
   for my $fnode (@$files) {
     my $ok = 0;
     # File
@@ -139,6 +169,7 @@ sub rm {
       $type = 'dir';
       $ok = File::Path::remove_tree($fnode->{'fn'}, {'safe' => $safe});
     }
+    if (!$ok && $errign) { print(STDERR "Warning: File/Dir: '$fn'. May have been previously deleted by rmtree().\n"); next; }
     if (!$ok) { die("Error deleting $type '$fnode->{'fn'}' - $!  (quitting for perm. checks)\n"); }
   }
 }

@@ -9,7 +9,7 @@ my $i = 0;
 sub tryme {
   $i++;
   print("Try # $i (Args: @_)\n");
-  if (@_) { print("Hello @_ !\n"); }
+  if (@_) { print("Hello @_ ! (i=$i)\n"); }
   if ($i>4) { print("Good enough\n"); return 1; }
   return 0;
 }
@@ -41,4 +41,5 @@ sub doit {
   print("Doit\n");
   return 1; # Always bad
 }
-$retrier->run(\&doit);
+my $ok = $retrier->run(\&doit);
+print("outcome(ok?): ".$ok."\n\n");

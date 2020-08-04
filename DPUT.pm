@@ -385,13 +385,13 @@ sub netrc_creds {
   my @locs = ("$ENV{HOME}/.netrc", "$ENV{HOMEDRIVE}$ENV{HOMEPATH}.netrc");
   my @locs2 = grep({ -f $_; } @locs);
   if (!@locs2) { die("netrc_creds(): No .netrc found (from @locs)"); }
+  # my $lines; my @$lines = DPUT::file_read($locs2[0], 'lines' => 1, rtrim => 1);
   my $ok = open(my $fh, "<", $locs2[0]);
   if (!$ok) { die("Could not open file"); }
   my @lines = <$fh>;
   close($fh);
   chomp(@lines);
   if ($opts{'debug'}) { print(Dumper(\@lines)); }
-  # my $re = qr/^machine\s+$hostname\s+login\s+(\S*)\s+password\s+(\S*)$/;
   my $re = qr/^machine\s+$hostname\b/;
   @lines = grep({ /$re/; } @lines);
   my $cnt = scalar(@lines);
@@ -658,7 +658,7 @@ sub testsuites_pass_fail_cnt {
 # ## DPUT::path_resolve($path, $fname, %opts)
 # 
 # Look for file (by name $fname) in path by name $path.
-# $path can be passed as array(ref) of paths or as a colon delimited.
+# $path can be passed as array(ref) of paths or as a colon delimited path string.
 # Resolution stops normally at the first matching path location, even if later
 # paths would match. Option $opts{'all'} forces matching to return all candidates
 # and coerces return value to array(ref).
@@ -677,7 +677,7 @@ sub testsuites_pass_fail_cnt {
 #   
 sub path_resolve {
   my ($path, $fname, %opts) = @_;
-  $path = (ref($path) eq 'ARRAY') ? $path : split(":", $path);
+  $path = (ref($path) eq 'ARRAY') ? $path : [split(":", $path)];
   if (ref($path) ne 'ARRAY') { die("Could not turn path to array"); }
   my @m = grep({-e "$_/$fname" ? 1 : 0; } @$path);
   

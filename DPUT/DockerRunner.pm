@@ -17,7 +17,7 @@ use DPUT;
 
 ## Allow changing docker binary, e.g. $DPUT::DockerRunner::dockerbin = 'docker-b22';
 our $dockerbin = 'docker';
-# ## DPUT::DockerRunner->new(%opts);
+# ## DPUT::DockerRunner->new(%opts);f
 # 
 # Create new docker runner with options to run docker.
 # 
@@ -95,9 +95,13 @@ sub new {
   if ($self->{'mergeuser'}) {
     if (!ref($self->{'mergeuser'})) {
       my $mu = $self->{'mergeuser'};
-      if ($mu =~ /^\w+$/) { $self->{'mergeuser'} = getaccount($mu); }
+      if ($mu =~ /^\d+$/) { die("mergeuser username passed as numeric ($mu) - use username."); }
+      # Updated to from plain ^\w+$ to "modern" NAME_REGEX (allow dash/hyphen)
+      if ($mu =~ /^[a-z][-a-z0-9]*$/) { $self->{'mergeuser'} = getaccount($mu); }
+      # Expect 7 field record passed as ':' delimited string
       else { $self->{'mergeuser'} = [split(/:/, $mu)]; }
     }
+    # By now we should have a array based 7-field pw-record.
     my $mulen = scalar(@{$self->{'mergeuser'}});
     if ($mulen != 7) { die("User not passed correctly (array or string) - must contain 7 fields (Got: $mulen).".Dumper($self)); }
     $self->{'mergeuname'} = $self->{'mergeuser'}->[0];
@@ -136,7 +140,7 @@ sub new {
 sub getaccount {
   my ($uname) = @_;
   if (!$uname) { die("No username passed"); }
-  if ($uname =~ /^\d+$/) { die("username passed as numeric"); }
+  if ($uname =~ /^\d+$/) { die("username passed as numeric - use username."); }
   my $pw = getpwnam($uname); # Returns 13 elems - reduce.
   if (!$pw) { die("No passwd entry gotten for $uname"); }
   my @acct = ( splice(@$pw, 0, 4), splice(@$pw, 5, 3));
@@ -201,7 +205,7 @@ sub setup_accts {
 # Run Docker with preconfigured params or *only* return docker run command (string) for more "manual" run.
 # Options in opts:
 # 
-# - cmdstring - Trigger return of command string only *without* actually running container
+# - cmdstring - Trigger return of command string only *without* actually running container (running is done by other means at caller side)
 # 
 # Note: The command to run inside docker will not be quoted.
 # Return either docker command string (w. option 'cmdstring') or return code of actual docker run.
@@ -232,10 +236,10 @@ sub run {
   my $rc = system($cmd); # `$cmd`
   return $rc;
 }
-# ## $docker->cmd($new);
+# ## $docker->cmd($cmd);
 # 
-# Force command to be set after construction. Especially useful if $cmd is not known at construction time and for example
-# dummy command was used at that time. No validation on command is done
+# Force command to be run in docker to be set (overriden) after construction. Especially useful if $cmd is not known at construction time and for example
+# dummy command was used at that time. No validation on command is done.
 sub cmd {
   my ($self, $cmd) = @_;
   $self->{'cmd'} = $cmd;
@@ -281,4 +285,49 @@ sub dockercat_find {
   my @m = grep({ $_->{$prop} eq $lbl; } @$dc);
   if (!@m) { return undef; }
   return $m[0];
+}
+
+# TODO: Run Docker in wrapped, pre-configured way.
+# - Allow referring to image with high-level label-name
+# - Allow defaulting to particular image in main config
+# - Resolve config from one of possible path locations
+# - Default to running as the $ENV{'USER'}, in current dir.
+# - Default to using current dir (User should provide current dir to be mounted by config "vols")
+# Params coming here:
+# - int - Use Interactive Mode
+# - dcat - Docker (Image) catalog
+# - imglbl - Image (high-level, "nice-name") label (to translate to image url via docker catalog)
+# TODO: Normalize these into methods to allow normal DockerRunner construction to use these.
+sub runcli {
+  my ($p) = @_;
+  my $dcfg = {'int' => $p->{'int'}, 'dcat' => $p->{'dcat'}, 'imglbl' => $p->{'imglbl'}, 'cmd' => $p->{'cmd'}}; # defaults here ?
+  if (!$dcfg->{'imglbl'}) { die("No Docker image label ('imglbl') passed !\n"); }
+  
+  # Resolve config names and paths for "docker.conf.json" and dockercat.conf.json
+  my @paths = (".","$ENV{'HOME'}");
+  my @confs = grep({-f $_."/docker.conf.json"; } @paths);
+  if (!@confs) {} # Fall back to defaults
+  if (scalar(@confs) > 1) { print(STDERR "Warning: Multiple docker.conf.json files found, using first found."); }
+  my $dconf;
+  if (scalar(@confs)) { $dconf = $confs[0]; }
+  # Load config, allow overrides
+  if ($dconf) {
+    if (!-f $dconf) { die("Docker config '$dconf' does not exist !\n"); }
+    $dcfg = jsonfile_load($dconf);
+    if (!$dcfg) { die("Could not parse Docker config: $dconf\n"); }
+    if (!$dcfg->{'dcat'}) { $dcfg->{'dcat'} = $p->{'dcat'}; }
+    if (!defined($dcfg->{'int'})) { $dcfg->{'int'} = $p->{'int'}; }
+    # TODO: Config var for "user-level docker catalog"
+  }
+  ############# Image Resolve and image specific options #################
+  if (!$dcfg->{'dcat'}) { die("No docker catalog specified. Must be available for image label translation.\n"); }
+  if (! -f $dcfg->{'dcat'}) { die("Configured docker catalog ('$dcfg->{'dcat'}') does not exist !\n"); }
+  # TODO: Find docker catalog in path ?
+  #my @cats  = grep({-f $_."/dockercat.conf.json"; } @paths);
+  my $dcat = dockercat_load($dcfg->{'dcat'});
+  
+  # Roll full environment ?
+  my $docker = DPUT::DockerRunner->new(%$dcfg);
+  my $cmd = $docker->run('cmdstring' => 1);
+  
 }
