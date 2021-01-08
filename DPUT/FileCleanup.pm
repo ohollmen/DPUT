@@ -6,6 +6,7 @@ use Data::Dumper;
 use strict;
 use warnings;
 
+our $cleanup = 1;
 # # DPUT::FileCleanup - Delete Files based on time and naming criteria
 # 
 # ## DPUT::FileCleanup->new($cfg)
@@ -25,25 +26,27 @@ sub new {
   if (!$cfg->{'path'}) { die("No path given !"); }
   # -d or -e (Consider symlinks)
   if (!-d $cfg->{'path'}) { die("path '$cfg->{'path'}' does not exist !"); }
-  if (!$cfg->{'tspec'}) {die("No timespec (E.g. '7d' in 'tspec')"); }
+  if ($cleanup && !$cfg->{'tspec'}) {die("No timespec (E.g. '7d' in 'tspec')"); }
   $cfg->{'files'} = []; # Init to empty
   # eval ?
   my %tsopts = ('debug' => ($cfg->{'debug'}), 'fcinst' => $cfg);
-  $cfg->{'tfilter'} = gentimefilt($cfg->{'tspec'}, %tsopts);
-  if (!$cfg->{'tfilter'} || (ref($cfg->{'tfilter'}) ne 'CODE')) {
-    die("Time spec filter (callback) could not be generated (spec: $cfg->{'tspec'}).");
+  if ($cfg->{'tspec'}) {
+    $cfg->{'tfilter'} = gentimefilt($cfg->{'tspec'}, %tsopts);
+    if (!$cfg->{'tfilter'} || (ref($cfg->{'tfilter'}) ne 'CODE')) {
+      die("Time spec filter (callback) could not be generated (spec: '$cfg->{'tspec'}').");
+    }
   }
   if (!$cfg->{'debug'}) { $cfg->{'debug'} = 0; }
   # NOT mandatory
   # if (!$cfg->{'npatt'}) { die("No name pattern available for cleanup"); }
-  if (!$cfg->{'type'}) {$cfg->{'type'} = 'tree'; } # 'tree'
+  if (!$cfg->{'type'}) { $cfg->{'type'} = 'tree'; } # 'tree'
   bless($cfg, $class);
   
   return($cfg);
 }
 
 # ## $fc->find_dirs()
-# Find dirs on one level (given by profile 'path')
+# Find dirs on one level (with rootpath given by profile 'path')
 sub find_dirs {
   my ($prof) = @_;
   my $path = $prof->{'path'};
@@ -62,7 +65,7 @@ sub find_dirs {
   my @files = ();
   my $fcb = $prof->{'tfilter'};
   for my $fn (@$files) {
-
+    if (!$fcb) { next; }
     my @s = stat($fn);
     # DEBUG:print("subdirs-FILE: $fn: ".Dumper($s)."\n");
     if (!-d $fn) { next; }
@@ -116,6 +119,8 @@ sub find {
   elsif ($fc->{'type'} eq 'deepdirs') { $files = $fc->find_dirs_deep(); }
   # NOTE: tfilter must be written to return Object
   else {
+    my $tfcb = $fc->{'tfilter'};
+    if (!$tfcb) { } # $tfcb = sub {  }; 
     $files = DPUT::filetree_filter_by_stat($fc->{'path'}, $fc->{'tfilter'}, 'useret' => 1) || [];
     if ($fc->{'npatt'}) {
       @$files = grep({
