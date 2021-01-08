@@ -16,20 +16,24 @@ our $runneropts_g = {
 # (E.g. git clone, git checkout or apt-get install, apt-get purge).
 #
 # ## Usage
-# my $optmeta = ["",""];
-# my $runneropts = {};
-# sub greet {}
-# sub delegate {}
-# $clrunner = DPUT::CLRunner->new($optmeta, $runneropts);
-# $clrunner->ops({'greet' => \&greet, '' => \&delegate});
+# 
+#     my $optmeta = ["",""];
+#     my $runneropts = {};
+#     sub greet {}
+#     sub delegate {}
+#     $clrunner = DPUT::CLRunner->new($optmeta, $runneropts);
+#     $clrunner->ops({'greet' => \&greet, '' => \&delegate});
 # 
 # 
 # ## $clrunner = DPUT::CLRunner->new($optmeta, $runneropts)
+# 
 # Missing 'ops' means that subcommands are not supported by this utility and this instance.
-# Options in %$runneropts
+# Options in %$runneropts:
+# 
 # - ops - Ops dispatch (callback) table
 # - op- Single op callback (Mutually exclusive with ops, only one must be passed)
 # - debug - Produce verbose output
+# 
 ## NOT: Allow validate CB. "defop"
 sub new {
   my ($class, $optmeta, $runneropts) = @_;
@@ -50,11 +54,14 @@ sub new {
   return($clr);
 }
 # ## $clrunner->ops($ops)
+# 
 # Explicit method to set operations (sub command dispatch table). Operations dispatch table is passed in $ops (hash ref),
 # where each operation keyword / label (usually a impertaive / verb form word e.g. "search") maps to a function with call signature:
 # 
 #     $cb->($opts); # Options passed to run() method. %$opts should be a hash object that callback can handle.
+# 
 # Options:
+# 
 # - 'merge' - When set to true value, the new $ops will be merged with possible existing values (in overriding manner)
 sub ops {
   my ($clr, $ops, %opts) = @_;
@@ -87,6 +94,7 @@ sub operation {
   
 }
 # ## isuniop($ops)
+# 
 # Internal detector to see if there is only single unambiguous operation in dispatch table.
 # Return the op name (key in dispatch table for the uique op, undef otherwise.
 # Only for module internal use (Do not use from outside app).
@@ -100,6 +108,7 @@ sub isuniop {
 }
 
 # ## $clrunner->run($opts)
+# 
 # Run application in ops mode (supporting CL sub-commands) or single-op mode (no subcommands).
 # This mode will be auto-detected.
 # Options:
@@ -140,6 +149,7 @@ sub run {
   return $clr;
 }
 # ## $cl_params_string = $clrunner->args($clioptions)
+# 
 # Turn opts (back) to CL argumnents, either an Array or string-serialized (quoted, escaped) form.
 # Uses CLRunner 'optmeta' as guide for the serialization.
 # Return array (default) or command line ready arguments string if 'str' option is passed.

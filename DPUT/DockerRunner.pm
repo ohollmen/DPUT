@@ -17,7 +17,7 @@ use DPUT;
 
 ## Allow changing docker binary, e.g. $DPUT::DockerRunner::dockerbin = 'docker-b22';
 our $dockerbin = 'docker';
-# ## DPUT::DockerRunner->new(%opts);f
+# ## DPUT::DockerRunner->new(%opts);
 # 
 # Create new docker runner with options to run docker.
 # 
@@ -226,7 +226,7 @@ sub run {
   }
   my $env = $self->{'env'};
   if ($env && (ref($env) eq 'HASH')) {
-    for my $k (keys(%$env)) { push(@args, "-e", "'$k=$env->{$k}'"); }
+    for my $k (sort keys(%$env)) { push(@args, "-e", "'$k=$env->{$k}'"); }
   }
   push(@args, $self->{'img'});
   push(@args, $self->{'cmd'}); # Unquoted to avoid nested quotes OR should we escape inner ?
