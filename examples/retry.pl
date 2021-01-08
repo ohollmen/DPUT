@@ -6,13 +6,20 @@ use DPUT::Retrier;
 use Data::Dumper;
 
 my $i = 0;
+# Return Perl-style ok-values
 sub tryme {
+  my ($sleeptime) = @_;
   $i++;
   print("Try # $i (Args: @_)\n");
+  if ($sleeptime) { sleep($sleeptime); }
   if (@_) { print("Hello @_ ! (i=$i)\n"); }
-  if ($i>4) { print("Good enough\n"); return 1; }
+  if ($i > 4) { print("Good enough\n"); return 1; }
   return 0;
 }
+
+my $ok = DPUT::Retrier->new('cnt' => 2, 'delay' => 3, 'debug' => 1, tout => 5)->run(sub { tryme(3); });
+print("ok=$ok\n");
+exit(1);
 
 my $ok = DPUT::Retrier->new('cnt' => 2, 'delay' => 3, 'debug' => 1)->run(\&tryme);
 print("outcome(ok?): ".$ok."\n\n");
