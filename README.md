@@ -53,19 +53,25 @@ JSON is written in "pretty" format assuming it benefits out of human readability
 Return $ok (actually number of bytes written)
 
 ## DPUT::file_read($fname, %opts)
+
 Read file content from a file by $fname.
 Options in opts:
+
 - 'lines' - Pre-split to lines and return array(ref) instead of scalar content
 - 'rtrim' - Get rid of trailing newline
+
 Return file content as scalar string (default) or array(ref) (with option 'lines')
 
 ## DPUT::dir_list($path, %opts)
+
 List a single directory or subdirectory tree.
 $path can be any resolvable path (relative or absolute).
 Options:
+
 - 'tree' - Create recursive listing
 - 'preprocess' - File::Find preprocess for tree traversal (triggered by 'tree' option)
 - 'abs' - Return absolute paths
+
 Return the files as array(ref)
 
 ## domainname()
@@ -73,6 +79,7 @@ Probe current DNS domainname (*not* NIS domainname) for the host app is running 
 Return full domain part of current host (e.g. passing host.example.com => example.com).
 
 ## DPUT::require_fastjson(%opts)
+
 Mandate a fast and size-scalable JSON parser/serializer in current runtime.
 Our biased favorite for this kind of parser is JSON::XS.
 Option 'probe' does not load (and possibly fail with exception)
@@ -81,6 +88,7 @@ If option 'probe' was passed, only detection of JSON::XS presence from current r
 and no exceptions are ever thrown.
 
 ## DPUT::file_checksum($fname, %opts)
+
 Extract MD5 checksum (default) from a file.
 Doing this inline in code is slightly tedious. This works well as a shortcut.
 Checksumming is still done efficiently by bot loading the whole content into memory.
@@ -90,10 +98,13 @@ Return MD5 Checksum.
 Generate local ISO timestamp for current moment in time or for another point in time - with optional $time parameter.
 
 ## DPUT::csv_to_data($csv, $fh, %opts);
+
 Extract data from CSV file by passing Text::CSV processor instance and filehandle (or filename) to load data from.
 Options:
+
 - cols - Pass explicit column names, do not extract column names from sheet (or map to new names)
 - striphdr - Strip first entity extracted when explicit column names ('cols') are passed
+
 Example CSV extraction scenario:
 
     use Text::CSV; 
@@ -103,13 +114,16 @@ Example CSV extraction scenario:
     my $arr = DPUT::csv_to_data($csv, $fh, 'cols' => undef);
     print(Dumper($arr));
 
+
 ## DPUT::sheet_to_data($xlsx_sheet, %opts);
 Extract data from XLSX to Array of Hashes for processing
 The data is passed as single Spreadsheet::ParseExcel::Worksheet sheet object.
 Options:
+
 - debug - Turn on verbose messages
 - cols - Pass explicit column names, do not extract column names from sheet (see also: striphdr)
 - striphdr - Strip first entity extracted when explicit column names ('cols') are passed
+
 Example CSV extraction scenario:
 
     my $converter = Text::Iconv->new ("utf-8", "windows-1251");
@@ -122,15 +136,20 @@ Example CSV extraction scenario:
 Return Array of Objects contained in the sheet processed.
 
 ## $creds = netrc_creds($hostname, %opts);
+
 Extract credentials (username and password) for a hostname.
 The triplet of hostname, username and password will be returned as an object with:
+
      {
        "host" => "the-server-host.com:8080",
        "user" => "jsmith",
        "pass" => "J0hNN7b07"
       }
+
 Options in %opts:
+
 - debug - Create dumps for dev time debugging (Note: this will potentially show secure data in logs)
+
 Return a complete host + credentials object (as seen above) - that is hopefully usable
 for establishing connection to the remote sever (e.g. HTTP+REST, MySQL, MongoDB, LDAP, ...)
 
@@ -203,15 +222,17 @@ Return and hash object(ref) with members pass, total and fail (and optionally 'e
 
 ## DPUT::path_resolve($path, $fname, %opts)
 
-Look for file (by name $fname) in path by name $path.
+Look for file or path (by name $fname) in path by name $path.
 $path can be passed as array(ref) of paths or as a colon delimited path string.
 Resolution stops normally at the first matching path location, even if later
 paths would match. Option $opts{'all'} forces matching to return all candidates
 and coerces return value to array(ref).
 
-$fname can also directory name as 
+$fname can also directory name as check is performed by "exists" criteria (instead of
+more specifically testing for file or dir).
 
 Examples:
+    
     # Find finding / resolving "my.cnf" from 2 alternative dirs
     my $fname_to_use = DPUT::path_resolve(["/etc/", "/etc/mysql"], "my.cnf");
     # ... is same as (whichever is more convenient)
@@ -229,35 +250,44 @@ It also strongly supports the modern convention of using sub-commands for cl com
 (E.g. git clone, git checkout or apt-get install, apt-get purge).
 
 ## Usage
-my $optmeta = ["",""];
-my $runneropts = {};
-sub greet {}
-sub delegate {}
-$clrunner = DPUT::CLRunner->new($optmeta, $runneropts);
-$clrunner->ops({'greet' => \&greet, '' => \&delegate});
+
+    my $optmeta = ["",""];
+    my $runneropts = {};
+    sub greet {}
+    sub delegate {}
+    $clrunner = DPUT::CLRunner->new($optmeta, $runneropts);
+    $clrunner->ops({'greet' => \&greet, '' => \&delegate});
 
 
 ## $clrunner = DPUT::CLRunner->new($optmeta, $runneropts)
+
 Missing 'ops' means that subcommands are not supported by this utility and this instance.
-Options in %$runneropts
+Options in %$runneropts:
+
 - ops - Ops dispatch (callback) table
 - op- Single op callback (Mutually exclusive with ops, only one must be passed)
 - debug - Produce verbose output
 
+
 ## $clrunner->ops($ops)
+
 Explicit method to set operations (sub command dispatch table). Operations dispatch table is passed in $ops (hash ref),
 where each operation keyword / label (usually a impertaive / verb form word e.g. "search") maps to a function with call signature:
 
     $cb->($opts); # Options passed to run() method. %$opts should be a hash object that callback can handle.
+
 Options:
+
 - 'merge' - When set to true value, the new $ops will be merged with possible existing values (in overriding manner)
 
 ## isuniop($ops)
+
 Internal detector to see if there is only single unambiguous operation in dispatch table.
 Return the op name (key in dispatch table for the uique op, undef otherwise.
 Only for module internal use (Do not use from outside app).
 
 ## $clrunner->run($opts)
+
 Run application in ops mode (supporting CL sub-commands) or single-op mode (no subcommands).
 This mode will be auto-detected.
 Options:
@@ -266,6 +296,7 @@ Options:
 Return instance for method chaining.
 
 ## $cl_params_string = $clrunner->args($clioptions)
+
 Turn opts (back) to CL argumnents, either an Array or string-serialized (quoted, escaped) form.
 Uses CLRunner 'optmeta' as guide for the serialization.
 Return array (default) or command line ready arguments string if 'str' option is passed.
@@ -508,6 +539,11 @@ Settings:
 
 - cnt - Number of times to retry (default: 3)
 - delay - delay between the tries (seconds, default: 10)
+- delays - an array of arbitrary (non-evenly spaced) delays to waits instead of constat interval time 'delay'.
+          This is mutaually exclusive with delay ('delays' overrides 'delay')
+- delaycb - Function to generate delay value for the Nth wait time (N=0..N-1). Function must accept a 0-based
+          N-value for the next wait (i.e. for first delay N=0). Mutually exclusive with 'delay' and 'delays' (This
+          overrides either of earlier)
 - args - Arguments (in array-ref) to pass to function to be run (Optional, no default).
 - debug - A debug flag / level for enabling module internal messages
   (currently treated as flag with now distinct levels, default: 0)
@@ -543,7 +579,7 @@ Example:
       if ($@) { return 0; } # Still not good, JSON error
       return 1; # Success, Perl style $ok value
     }
-    my $ok = Retrier->new('cnt' => 2, 'delay' => 3)->run(\&get_news);
+    my $ok = DPUT::Retrier->new('cnt' => 2, 'delay' => 3)->run(\&get_news);
     # Same parametrized (with 'args'):
     sub get_news {
       my ($jsonurl) = @_;
@@ -563,7 +599,15 @@ Store good app-wide defaults in DPUT::Retrier class vars to make construction su
 
 This is a valid approach when settings are universal to whole app (no variance between the calls).
 
+### Using non-linear delay times
+If you are not happy using evenly spaced intervals when trying, DPUT::Retrier allows passing the delay
+time as array in parameter 'delays" (note trailing 's'). The values can be e.g. generated by caller:
+
+    my @delays = map({ return $_ ^ 2; } 1..5);
+    my $ok = DPUT::Retrier->new('delays' => \@delays)->run(sub { get($url); });
+
 TODO: Allow passing max time to try.
+TODO: Allow args for **this** function (as an alternative to passing args to construction (a mild design flaw)
 
 # DPUT::ToolProbe - Detect command-line tool versions
 

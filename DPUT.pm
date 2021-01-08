@@ -136,10 +136,13 @@ sub file_write {
 }
 
 # ## DPUT::file_read($fname, %opts)
+# 
 # Read file content from a file by $fname.
 # Options in opts:
+# 
 # - 'lines' - Pre-split to lines and return array(ref) instead of scalar content
 # - 'rtrim' - Get rid of trailing newline
+# 
 # Return file content as scalar string (default) or array(ref) (with option 'lines')
 sub file_read {
   my ($fname, %opts) = @_;
@@ -160,12 +163,15 @@ sub file_read {
   return $cont;
 }
 # ## DPUT::dir_list($path, %opts)
+# 
 # List a single directory or subdirectory tree.
 # $path can be any resolvable path (relative or absolute).
 # Options:
+# 
 # - 'tree' - Create recursive listing
 # - 'preprocess' - File::Find preprocess for tree traversal (triggered by 'tree' option)
 # - 'abs' - Return absolute paths
+# 
 # Return the files as array(ref)
 sub dir_list {
   my ($path, %opts) = @_;
@@ -213,6 +219,7 @@ sub domainname {
 }
 
 # ## DPUT::require_fastjson(%opts)
+# 
 # Mandate a fast and size-scalable JSON parser/serializer in current runtime.
 # Our biased favorite for this kind of parser is JSON::XS.
 # Option 'probe' does not load (and possibly fail with exception)
@@ -230,6 +237,7 @@ sub require_fastjson {
   return $ver;
 }
 # ## DPUT::file_checksum($fname, %opts)
+# 
 # Extract MD5 checksum (default) from a file.
 # Doing this inline in code is slightly tedious. This works well as a shortcut.
 # Checksumming is still done efficiently by bot loading the whole content into memory.
@@ -274,10 +282,13 @@ sub isotime {
 ##   eliminate headers from data.
 
 # ## DPUT::csv_to_data($csv, $fh, %opts);
+# 
 # Extract data from CSV file by passing Text::CSV processor instance and filehandle (or filename) to load data from.
 # Options:
+# 
 # - cols - Pass explicit column names, do not extract column names from sheet (or map to new names)
 # - striphdr - Strip first entity extracted when explicit column names ('cols') are passed
+# 
 # Example CSV extraction scenario:
 # 
 #     use Text::CSV; 
@@ -286,6 +297,7 @@ sub isotime {
 #     my $ok = open(my $fh, "<", "animals.csv");
 #     my $arr = DPUT::csv_to_data($csv, $fh, 'cols' => undef);
 #     print(Dumper($arr));
+# 
 sub csv_to_data {
   my ($csv, $fh, %opts) = @_;
   if (!$csv) { die("No Text::CSV instance passed !"); }
@@ -327,9 +339,11 @@ sub csv_to_data {
 # Extract data from XLSX to Array of Hashes for processing
 # The data is passed as single Spreadsheet::ParseExcel::Worksheet sheet object.
 # Options:
+# 
 # - debug - Turn on verbose messages
 # - cols - Pass explicit column names, do not extract column names from sheet (see also: striphdr)
 # - striphdr - Strip first entity extracted when explicit column names ('cols') are passed
+# 
 # Example CSV extraction scenario:
 #
 #     my $converter = Text::Iconv->new ("utf-8", "windows-1251");
@@ -369,15 +383,20 @@ sub sheet_to_data {
   return {'data' => \@aoo, 'cols' => $cols};
 }
 # ## $creds = netrc_creds($hostname, %opts);
+# 
 # Extract credentials (username and password) for a hostname.
 # The triplet of hostname, username and password will be returned as an object with:
+# 
 #      {
 #        "host" => "the-server-host.com:8080",
 #        "user" => "jsmith",
 #        "pass" => "J0hNN7b07"
 #       }
+# 
 # Options in %opts:
+# 
 # - debug - Create dumps for dev time debugging (Note: this will potentially show secure data in logs)
+# 
 # Return a complete host + credentials object (as seen above) - that is hopefully usable
 # for establishing connection to the remote sever (e.g. HTTP+REST, MySQL, MongoDB, LDAP, ...)
 sub netrc_creds {
@@ -483,6 +502,7 @@ sub procctx {
 ## - $names - array(ref) of names to use as keys of object
 ##
 ## Example:
+## 
 ##     my $re = qr/v?(\d+)\.(\d+)\.(\d+).*/;
 ##     my $verstr = "v2.6.7-patch87";
 ##     my $v = DPUT::named_parse($re, $verstr, ['major','minor','patch']);
@@ -657,15 +677,17 @@ sub testsuites_pass_fail_cnt {
 
 # ## DPUT::path_resolve($path, $fname, %opts)
 # 
-# Look for file (by name $fname) in path by name $path.
+# Look for file or path (by name $fname) in path by name $path.
 # $path can be passed as array(ref) of paths or as a colon delimited path string.
 # Resolution stops normally at the first matching path location, even if later
 # paths would match. Option $opts{'all'} forces matching to return all candidates
 # and coerces return value to array(ref).
 # 
-# $fname can also directory name as 
+# $fname can also directory name as check is performed by "exists" criteria (instead of
+# more specifically testing for file or dir).
 # 
 # Examples:
+#     
 #     # Find finding / resolving "my.cnf" from 2 alternative dirs
 #     my $fname_to_use = DPUT::path_resolve(["/etc/", "/etc/mysql"], "my.cnf");
 #     # ... is same as (whichever is more convenient)
