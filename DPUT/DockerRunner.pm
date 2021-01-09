@@ -85,17 +85,18 @@ sub new {
   #if (!$opts{'img'}) { die("Does not look like docker build\n"); }
   
   my $self = {'img' => $opts{'img'}, 'vols' => ($opts{'vols'} || []), 'cmd' => $opts{'cmd'},
-     'mergeuser' => $opts{'mergeuser'}, asuser => $opts{'asuser'},
+     'mergeuser' => $opts{'mergeuser'}, asuser => $opts{'asuser'}, 'mergegroup' => $opts{'mergegroup'},
      'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {}),  'asgroup' => $opts{'asgroup'} # 'cwd' => $opts{'cwd'},
   };
   if (exists($opts{'cwd'})) { $self->{'cwd'} = $opts{'cwd'}; }
   my $vols = $self->{'vols'};
   @$vols = map({/:/ ? $_ : "$_:$_"; } @$vols); # Ensure "srcvol:destvol" notation
   bless($self, $class);
+  # User ?
   if ($self->{'mergeuser'}) {
     if (!ref($self->{'mergeuser'})) {
       my $mu = $self->{'mergeuser'};
-      if ($mu =~ /^\d+$/) { die("mergeuser username passed as numeric ($mu) - use username."); }
+      if ($mu =~ /^\d+$/) { die("mergeuser id passed as numeric ($mu) - use name."); }
       # Updated to from plain ^\w+$ to "modern" NAME_REGEX (allow dash/hyphen)
       if ($mu =~ /^[a-z][-a-z0-9]*$/) { $self->{'mergeuser'} = getaccount($mu); }
       # Expect 7 field record passed as ':' delimited string
@@ -105,9 +106,26 @@ sub new {
     my $mulen = scalar(@{$self->{'mergeuser'}});
     if ($mulen != 7) { die("User not passed correctly (array or string) - must contain 7 fields (Got: $mulen).".Dumper($self)); }
     $self->{'mergeuname'} = $self->{'mergeuser'}->[0];
-    my %aopts = ('host' => $opts{'host'} || undef );
-    $self->setup_accts(%aopts);
   }
+  # Group
+  if ($self->{'mergegroup'}) {
+    if (!ref($self->{'mergegroup'})) {
+      my $mu = $self->{'mergegroup'};
+      if ($mu =~ /^\d+$/) { die("mergegroup id passed as numeric ($mu) - use name."); }
+      # Updated to from plain ^\w+$ to "modern" NAME_REGEX (allow dash/hyphen)
+      if ($mu =~ /^[a-z][-a-z0-9]*$/) { $self->{'mergegroup'} = getaccount($mu, 1); } # GROUP
+      # Expect 7 field record passed as ':' delimited string
+      else { $self->{'mergegroup'} = [split(/:/, $mu, 4)]; }
+      print(Dumper($self->{'mergegroup'}));
+    }
+    # By now we should have a array based 7-field pw-record.
+    my $mulen = scalar(@{$self->{'mergegroup'}});
+    if ($mulen != 4) { die("Group not passed correctly (array or string) - must contain 4 fields (Got: $mulen).".Dumper($self)); }
+    $self->{'mergegname'} = $self->{'mergegroup'}->[0];
+  }
+  my %aopts = ('host' => $opts{'host'} || undef );
+  $self->setup_accts(%aopts);
+    
   if ($self->{'asuser'}) {
     #  use User::pwent; ????
     my $uid = -1;
@@ -138,12 +156,22 @@ sub new {
 # Wrapper for Getting a local (or any resolvable, e.g. NIS/LDAP) user account.
 # Returns an array of 7 elements, with fields of /etc/passwd
 sub getaccount {
-  my ($uname) = @_;
-  if (!$uname) { die("No username passed"); }
-  if ($uname =~ /^\d+$/) { die("username passed as numeric - use username."); }
-  my $pw = getpwnam($uname); # Returns 13 elems - reduce.
-  if (!$pw) { die("No passwd entry gotten for $uname"); }
-  my @acct = ( splice(@$pw, 0, 4), splice(@$pw, 5, 3));
+  my ($uname, $isgrp) = @_;
+  if (!$uname) { die("No username/groupname passed"); }
+  if ($uname =~ /^\d+$/) { die("entry id passed as numeric - use name."); }
+  my @acct;
+  if ($isgrp) {
+    #my $ge = getgrnam($uname); # Returns scalar gid !
+    my @ge = getgrnam($uname);
+    if (!@ge) { die("No group entry gotten for '$uname'"); }
+    #print("GRENT:".Dumper(\@ge));
+    @acct = @ge;
+  }
+  else {
+    my $pw = getpwnam($uname); # Returns 13 elems - reduce.
+    if (!$pw) { die("No passwd entry gotten for '$uname'"); }
+    @acct = ( splice(@$pw, 0, 4), splice(@$pw, 5, 3));
+  }
   return wantarray ? @acct : \@acct;
 }
 
@@ -171,35 +199,54 @@ sub userhasdocker {
 # Returns true (1) for success and false (0) for (various) errors (with Warning printed to STDERR, no exceptions are thrown).
 sub setup_accts {
   my ($self, %opts) = @_;
-  if (!$self->{'mergeuser'}) { return 0; }
-  if (!$self->{'mergeuname'}) { print(STDERR "Warning: Merge user passed, but no 'mergeuname' resolved\n");return 0; }
   my $remhost = $opts{'host'} || $self->{'host'};
+  # ORIG:
+  #if (!$self->{'mergeuser'}) { return 0; }
+  #if (!$self->{'mergeuname'}) { print(STDERR "Warning: Merge user passed, but no 'mergeuname' resolved\n");return 0; }
+  foreach my $ftype ('passwd', 'group') {
+    my $idkey = $ftype eq 'passwd' ? "mergeuser"  : "mergegroup";
+    if (!$self->{$idkey}) { print(STDERR "No ent for $ftype addition (key=$idkey)\n"); next; }
+    my $id   = $ftype eq 'passwd' ? "mergeuname" : "mergegname"; # ID attr
+    if (!$self->{$id}) { print(STDERR "Warning: Merge $ftype passed, but no '$id' resolved\n");return 0; }
+    my $fname = $self->etc_file_dump($ftype, $self->{$id});
+    if (!$fname) { print(STDERR "Error: $ftype Merge error (No filename gotten)\n");return 0; }
+    # Add new mapping for temp passwd file
+    my $mapping = $self->{"etc$ftype"}.":/etc/$ftype";
+    # If remote, must copy file, keep name
+    if ($remhost) { my $cpc = "scp -p $fname $remhost:$fname"; `$cpc`; if ($?) {} }
+    push(@{$self->{'vols'}}, $mapping);
+    $self->{'debug'} && print(STDERR "Added user/group '$mun' to '$fname' and will use that via new volume mapping '$mapping'.\n");
+  }
+  
+  return 1;
+}
+# ## 
+# Dump an /etc/ file from inside docker with supported file types being "passwd" or "group"
+sub etc_file_dump {
+  my ($self, $ftype, $mun, %opts) = @_;
+  if (!$mun) { print(STDERR "Error: Missing '$ftype' entry id\n");return 0; }
   # Run dump from docker
-  my $dumpcmd = "docker run --rm '$self->{'img'}' cat /etc/passwd";
+  my $dumpcmd = "docker run --rm '$self->{'img'}' cat /etc/$ftype";
   if ($remhost) { $dumpcmd = "ssh $remhost \"$dumpcmd\""; }
   my @passout = `$dumpcmd`;
   # srw-rw---- /var/run/docker.sock
-  if (!@passout) { print(STDERR "Warning: Could not extract passwd from docker ($dumpcmd, uid:$<)\n");return 0; }
+  if (!@passout) { print(STDERR "Warning: Could not extract '$ftype' from docker ($dumpcmd, uid:$<)\n");return 0; }
   chomp(@passout);
   #$self->{'debug'} && print(STDERR "PASSDUMP:".Dumper(\@passout));
-  $self->{'debug'} && print(STDERR "setup_accts: Got ".scalar(@passout)." passwd lines from docker.\n");
-  my $mun = $self->{'mergeuname'};
+  $self->{'debug'} && print(STDERR "setup_accts: Got ".scalar(@passout)." '$ftype' lines from docker.\n");
+  # OLD: my $mun = $self->{'mergeuname'};
   my @m = grep({$_ =~ /^$mun:/} @passout);
-  if (@m) { print(STDERR "Warning: Username to merge ('$mun') seems to already exist in Docker passwd file\n");return 0; }
-  push(@passout, join(":", @{ $self->{'mergeuser'} }));
+  if (@m) { print(STDERR "Warning: User/Group to merge (id: '$mun') seems to already exist in Docker '$ftype' file\n");return 0; }
+  my $entkey = $ftype eq 'passwd' ? 'mergeuser' : 'mergegroup'; # Key to array ent
+  push(@passout, join(":", @{ $self->{$entkey} })); # OLD: 'mergeuser'
   $self->{'debug'} && print(STDERR "PASSWD-DUMP-POSTADD:\n".Dumper(\@passout));
-  my $fname = "/tmp/passwd_".$$."_".time();
+  my $fname = "/tmp/$ftype\_".$$."_".time();
   eval { DPUT::file_write($fname, \@passout, 'lines' => 1); };
-  if ($@) { print(STDERR "Failed to write temporary pasword file\n"); }
-  $self->{'etcpasswd'} = $fname; # Record
-  # Add new mapping for temp passwd file
-  my $mapping = "$self->{'etcpasswd'}:/etc/passwd";
-  # If remote, must copy file, keep name
-  if ($remhost) { my $cpc = "scp -p $fname $remhost:$fname"; `$cpc`; if ($?) {} }
-  push(@{$self->{'vols'}}, $mapping);
-  $self->{'debug'} && print(STDERR "Added user '$mun' to '$fname' and will use that via new volume mapping '$mapping'.\n");
-  return 1;
+  if ($@) { print(STDERR "Failed to write temporary $ftype file\n"); }
+  $self->{"etc$ftype"} = $fname; # Record into $self
+  return $fname;
 }
+
 # ## $docker->run(%opts);
 # 
 # Run Docker with preconfigured params or *only* return docker run command (string) for more "manual" run.

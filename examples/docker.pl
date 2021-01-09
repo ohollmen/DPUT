@@ -18,10 +18,17 @@ my $dcfg = {
   "vols" => ["/tmp", "/usr"],
   "asuser" => "ohollmen",
   "mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
+  # NEW !
+  #"mergegroup" => "oddball:x:1004:",
+  # "mergegroup" => "scanner", # 4 flds
+  "mergegroup" => "avahi", # 3 flds
   "env" => {"LIFE_PURPOSE" => 42, "OSS_APP_FAVE" => "docker"}, # , %ENV
   #
   "debug" => 1,
 };
+#my @foo = split(/:/, "", 4); # "a:b:c:"
+#print(Dumper(\@foo)); exit(1);
+
 #my $pw = getpwnam($ENV{'USER'}); # 13 elems !
 #print(Dumper($pw)); exit(0);
 #my @acct = DPUT::DockerRunner::getaccount($ENV{'USER'});
