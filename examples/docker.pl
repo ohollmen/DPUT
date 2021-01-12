@@ -22,9 +22,13 @@ my $dcfg = {
   #"mergegroup" => "oddball:x:1004:",
   # "mergegroup" => "scanner", # 4 flds
   "mergegroup" => "avahi", # 3 flds
+  # Case: Overlap
+  "mergegroup" => "audio:x:20:",
+  "mergeforce" => 1,
   "env" => {"LIFE_PURPOSE" => 42, "OSS_APP_FAVE" => "docker"}, # , %ENV
   #
   "debug" => 1,
+  #"confdir" => $ENV{'HOME'},
 };
 #my @foo = split(/:/, "", 4); # "a:b:c:"
 #print(Dumper(\@foo)); exit(1);

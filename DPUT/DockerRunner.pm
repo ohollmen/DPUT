@@ -82,16 +82,24 @@ sub new {
   $opts{'debug'} && print(Dumper(\%opts));
   if (!$opts{'img'}) { die("No Docker Image\n"); }
   if (!$opts{'cmd'}) { die("No Docker Command to execute\n"); }
-  #if (!$opts{'img'}) { die("Does not look like docker build\n"); }
-  
+  #if (!$opts{'???'}) { die("Does not look like docker task\n"); }
+  my @props = ('img', 'vols', 'cmd', 'mergeuser', 'asuser', 'mergegroup', 'debug', 'env', 'asgroup', 'confdir');
   my $self = {'img' => $opts{'img'}, 'vols' => ($opts{'vols'} || []), 'cmd' => $opts{'cmd'},
-     'mergeuser' => $opts{'mergeuser'}, asuser => $opts{'asuser'}, 'mergegroup' => $opts{'mergegroup'},
-     'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {}),  'asgroup' => $opts{'asgroup'} # 'cwd' => $opts{'cwd'},
+     'mergeuser' => $opts{'mergeuser'}, 'asuser' => $opts{'asuser'}, 'mergegroup' => $opts{'mergegroup'},
+     'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {}),  'asgroup' => $opts{'asgroup'}, # 'cwd' => $opts{'cwd'},
+     'confdir' => $opts{'confdir'}, 'mergeforce' => $opts{'mergeforce'},
   };
   if (exists($opts{'cwd'})) { $self->{'cwd'} = $opts{'cwd'}; }
   my $vols = $self->{'vols'};
   @$vols = map({/:/ ? $_ : "$_:$_"; } @$vols); # Ensure "srcvol:destvol" notation
   bless($self, $class);
+  # TODO: Support Cases 'confdir' or passing 'conf' (already loaded config)
+  # if ($self->{'conf'}) {  }
+  if ($self->{'confdir'}) {
+    #my $conf = DPUT::DockerConf->new($self->{'confdir'}); print("DOCKER-CONF: ".Dumper($conf));
+    
+  }
+  ############### adding User and Group / Running as ... #################
   # User ?
   if ($self->{'mergeuser'}) {
     if (!ref($self->{'mergeuser'})) {
@@ -138,7 +146,7 @@ sub new {
     # else {
     $uid   = CORE::getpwnam($self->{'asuser'}); # getpwent();
     # }
-    if (!$uid) { print("No user resolved for '$self->{'asuser'}'\n"); }
+    if (!$uid) { print(STDERR "No user resolved for '$self->{'asuser'}'\n"); }
     $self->{'debug'} && print(STDERR "Run-as user (-u) '$self->{'asuser'}' resolved to uid='$uid'\n");
     # Docker seems to mandate uidnumber
     $self->{'uid'} = $uid;
@@ -151,10 +159,11 @@ sub new {
   $self->{debug} && print(STDERR Dumper($self));
   return $self; 
 }
-# ## DPUT::DockerRunner::getaccount($username);
+# ## DPUT::DockerRunner::getaccount($username, $isgrp);
 # 
-# Wrapper for Getting a local (or any resolvable, e.g. NIS/LDAP) user account.
-# Returns an array of 7 elements, with fields of /etc/passwd
+# Wrapper for Getting a local (or any resolvable, e.g. NIS/LDAP) user account or group.
+# Returns an array of 7 elements, with fields of /etc/passwd for user account, array of 4 elements
+# for a group.
 sub getaccount {
   my ($uname, $isgrp) = @_;
   if (!$uname) { die("No username/groupname passed"); }
@@ -209,15 +218,14 @@ sub setup_accts {
     my $id   = $ftype eq 'passwd' ? "mergeuname" : "mergegname"; # ID attr
     if (!$self->{$id}) { print(STDERR "Warning: Merge $ftype passed, but no '$id' resolved\n");return 0; }
     my $fname = $self->etc_file_dump($ftype, $self->{$id});
-    if (!$fname) { print(STDERR "Error: $ftype Merge error (No filename gotten)\n");return 0; }
+    if (!$fname) { print(STDERR "Error: $ftype Merge error/conflict (No filename gotten)\n");return 0; }
     # Add new mapping for temp passwd file
     my $mapping = $self->{"etc$ftype"}.":/etc/$ftype";
     # If remote, must copy file, keep name
     if ($remhost) { my $cpc = "scp -p $fname $remhost:$fname"; `$cpc`; if ($?) {} }
     push(@{$self->{'vols'}}, $mapping);
-    $self->{'debug'} && print(STDERR "Added user/group '$mun' to '$fname' and will use that via new volume mapping '$mapping'.\n");
+    $self->{'debug'} && print(STDERR "Added $ftype ent. '$self->{$id}' to '$fname' and will use that via new volume mapping '$mapping'.\n");
   }
-  
   return 1;
 }
 # ## 
@@ -225,6 +233,7 @@ sub setup_accts {
 sub etc_file_dump {
   my ($self, $ftype, $mun, %opts) = @_;
   if (!$mun) { print(STDERR "Error: Missing '$ftype' entry id\n");return 0; }
+  my $force = $self->{'mergeforce'};
   # Run dump from docker
   my $dumpcmd = "docker run --rm '$self->{'img'}' cat /etc/$ftype";
   if ($remhost) { $dumpcmd = "ssh $remhost \"$dumpcmd\""; }
@@ -234,12 +243,34 @@ sub etc_file_dump {
   chomp(@passout);
   #$self->{'debug'} && print(STDERR "PASSDUMP:".Dumper(\@passout));
   $self->{'debug'} && print(STDERR "setup_accts: Got ".scalar(@passout)." '$ftype' lines from docker.\n");
-  # OLD: my $mun = $self->{'mergeuname'};
-  my @m = grep({$_ =~ /^$mun:/} @passout);
-  if (@m) { print(STDERR "Warning: User/Group to merge (id: '$mun') seems to already exist in Docker '$ftype' file\n");return 0; }
   my $entkey = $ftype eq 'passwd' ? 'mergeuser' : 'mergegroup'; # Key to array ent
+  my $lidx = 0;
+  my $nidx = 2;
+  my $mrec = $self->{$entkey};
+  $self->{'debug'} && print(STDERR "Entry to merge: ".Dumper($mrec).".\n");
+  $mun = $mrec->[0];
+  # OLD: my $mun = $self->{'mergeuname'};
+  my @m; my @midx;
+  # @m = grep({$_ =~ /^$mun:/; } @passout);
+  my $i = 0;
+  for (@passout) {
+    my @orec = split(/:/, $_); # print("$ftype-$i:".Dumper(\@orec)."\n");
+    my $olap = 0;
+    if    ($orec[0] eq $mun) { unshift(@midx, $i); $olap = 1;}
+    elsif ($orec[2] == $mrec->[2]) { unshift(@midx, $i); $olap = 1; }
+    #else { $i++; next; }
+    if ($olap && $force) { $_ = undef; }
+    $i++;
+  }
+  @passout = grep({ $_; } @passout);
+  if (@m || @midx) {
+    print(STDERR "Warning: User/Group to merge (id: '$mun') seems to already exist in Docker '$ftype' file\n");
+    print(STDERR "Overlapping idx: ".Dumper(\@midx)."\n");
+    if (!$force) { return 0; }
+  }
+  #$self->{'debug'} && print(STDERR "setup_accts: Got \n");
   push(@passout, join(":", @{ $self->{$entkey} })); # OLD: 'mergeuser'
-  $self->{'debug'} && print(STDERR "PASSWD-DUMP-POSTADD:\n".Dumper(\@passout));
+  $self->{'debug'} && print(STDERR "$ftype-DUMP-POSTADD:\n".Dumper(\@passout));
   my $fname = "/tmp/$ftype\_".$$."_".time();
   eval { DPUT::file_write($fname, \@passout, 'lines' => 1); };
   if ($@) { print(STDERR "Failed to write temporary $ftype file\n"); }
@@ -377,4 +408,64 @@ sub runcli {
   my $docker = DPUT::DockerRunner->new(%$dcfg);
   my $cmd = $docker->run('cmdstring' => 1);
   
+}
+
+package DPUT::DockerConf;
+
+## Docker Configuration
+## Allow loading docker main config (docker environment global settings) and catalog of images / image configs easily.
+## Utilize 
+
+# ## load JSON Config(s) form a path.
+# 
+# Look for current docker environment files:
+# - Main docker config by name docker.conf.json
+# - Docker catalog by name: dockercat.conf.json
+# Docker catalog is only looked for if main config exists.
+# 
+# Note: These files are configs for DockerRunner module, not formats defined by docker product.
+sub new {
+  my ($class, $path, %opts) = @_;
+  my $dcfname = "$path/docker.conf.json";
+  my $dcatfname = "$path/dockercat.conf.json";
+  my $self = bless({'dcat' => []}, $class);
+  my $msg = "DockerConf construct error: ";
+  if (!-f $dcfname) { $msg .= "No docker config ($dcfname) found"; goto FAIL; }
+  my $dconf = eval { DPUT::jsonfile_load($dcfname); };
+  if (@$ || !$dconf) { $msg .=  "No base docker config ('$dcfname') loaded (Got '$dconf' / '$@') !\n"; goto FAIL; }
+  if (ref($dconf) ne 'HASH') { $msg .= "Docker main config not in a HASH !"; goto FAIL; }
+  print("Loaded CONF\n");
+  #if ($dconf &&  (ref($dconf) eq 'HASH')) { $self = $dconf; }
+  $this = bless($dconf, $class);
+  $this->{'dcat'} = undef;
+  # Dockercat - Optional !
+  $msg = "";
+  if (!-f $dcatfname) { $msg .= "No docker catalog ($dcatfname) found"; goto SUCCESS; }
+  my $dcatarr = eval { DPUT::jsonfile_load($dcatfname); };
+  if (ref($dcatarr) ne 'ARRAY') { $msg .= "Docker catalog not in an ARRAY !"; goto SUCCESS; }
+  $this->{'dcat'} = $dcatarr;
+  print("Loaded CAT\n");
+  if ($msg) { print("Warning: $msg\n"); }
+  SUCCESS:
+  return $this;
+  FAIL:
+  if ($opts{'nofail'}) { return $this; }
+  $msg .= "\n";
+  print(STDERR $msg); return undef;
+}
+
+sub find {
+  my ($self, $attr, $val) = @_;
+  if (!$self->{'dcat'}) { return undef; }
+  my $imgnode = DPUT::DockerRunner::dockercat_find($dcat, $val, 'by' => $attr);
+  return $imgnode;
+}
+
+sub olay {
+  my ($self, $base) = @_;
+  # Attrs to overlay
+  my @attrs = ();
+  for my $at (@attrs) {
+    if ($self->{$at} && !$base->{$at}) { $base->{$at} = $self->{$at}; }
+  }
 }
