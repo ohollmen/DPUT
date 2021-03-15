@@ -156,6 +156,7 @@ sub rm {
   if (!$files) { print(STDERR "No files (or dirs) to remove / delete !"); return; }
   my $safe = $fc->{'force'} ? 0 : 1;
   my $errign = $fc->{'deepdirs'} ? 1 : 0;
+  my $rmcnt = 0;
   for my $fnode (@$files) {
     my $ok = 0;
     # File
@@ -174,9 +175,12 @@ sub rm {
       $type = 'dir';
       $ok = File::Path::remove_tree($fnode->{'fn'}, {'safe' => $safe});
     }
-    if (!$ok && $errign) { print(STDERR "Warning: File/Dir: '$fn'. May have been previously deleted by rmtree().\n"); next; }
-    if (!$ok) { die("Error deleting $type '$fnode->{'fn'}' - $!  (quitting for perm. checks)\n"); }
+    if ($ok) { print(STDERR "Deleted $type: '$fnode->{'fn'}'\n"); $rmcnt++; }
+    elsif (!$ok && $errign) { print(STDERR "Warning: File/Dir: '$fn'. May have been previously deleted by rmtree().\n"); next; }
+    elsif (!$ok) { die("Error deleting $type '$fnode->{'fn'}' - $!  (quitting for perm. checks)\n"); }
   }
+  if ($rmcnt) { print(STDERR "Deleted $rmcnt files/dirs (See previous output for details)\n"); }
+  return $rmcnt;
 }
 # ## gentimefilt($timestr, %opts)
 # 
@@ -212,6 +216,7 @@ sub gentimefilt {
 }
 
 # Test. TODO: Convert to actual utility
+# 
 if ($0 =~ /FileCleanup.pm/) {
   print("Running the module ('$0')\n");
   $| = 1;
@@ -219,7 +224,17 @@ if ($0 =~ /FileCleanup.pm/) {
   # GetOptions(\%opts, @optmeta); # 
   #my $cfg = {"path" => "/usr/lib/", "tspec" => "900d", 'npatt' => qr/\.so\b.*/, 'debug' => 1};
   #my $cfg = {"path" => "/usr/lib/", "tspec" => "900d", 'npatt' => "\.so\b.*", 'debug' => 1}; # String RE
-  my $cfg = {"path" => "/usr/lib/", "tspec" => "300d", 'npatt' => ".*", 'type' => 'subdirs', 'debug' => 1}; # String RE + 'subdirs'
+  #my $cfg = {"path" => "/usr/lib/", "tspec" => "300d", 'npatt' => ".*", 'type' => 'subdirs', 'debug' => 1}; # String RE + 'subdirs'
+  for my $i (1..20) {
+    my $path = "/tmp/totally_dummy_path_$i";
+    File::Path::make_path($path, {verbose => 1});
+    # 
+    # --date '1 June 2018 11:02'
+    my $cmd = "touch -t 201806011102 $path";
+    #`$cmd`;
+    system($cmd);
+  }
+  my $cfg = {"path" => "/tmp", "tspec" => "5d", 'npatt' => qr/^totally_dummy_path_\d+/, 'type' => 'subdirs', 'debug' => 1};
   my $fc = DPUT::FileCleanup->new($cfg);
   DEBUG: print(Dumper($fc));
   #exit(1);
@@ -227,6 +242,9 @@ if ($0 =~ /FileCleanup.pm/) {
   #exit(1);
   print(scalar(@$files)." Files from '$cfg->{'path'}', type=$cfg->{'type'}\n");
   print(Dumper($files));
+  #if ($opts{'delete'}) {
+    $fc->rm();
+  #}
 }
 
 # ## TODO
