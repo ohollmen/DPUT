@@ -3,6 +3,7 @@
 package DPUT::DataRun;
 use strict;
 use warnings;
+# use Data::Dumper;
 
 our $VERSION = '0.0.1';
 # ## $drun = DPUT::DataRun->new($callback, $opts)
@@ -168,7 +169,7 @@ sub run_serpar {
   my ($drun, $items, %opts) = @_;
   my $grpcnt = $opts{'grpcnt'} || 3;
   if ($grpcnt < 2) { print(STDERR "Warning: run_serpar with grpcnt < 2 - That coverges to (effective) run_series!"); }
-  print("GRPCNT: $grpcnt\n");
+  # $drun->{'debug'} && print("GRPCNT: $grpcnt\n"); # TODO: Allow & document 'debug'
   my $grpsize = scalar(@$items);
   # Common
   #my $cb = $drun->{'cb'};
