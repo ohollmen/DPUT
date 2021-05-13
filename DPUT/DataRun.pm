@@ -143,8 +143,8 @@ sub arr_chunk {
   $grpcnt = $grpcnt || 3;
   my $itemcnt = int(scalar(@$arr_org) / $grpcnt);
   my @arr_copy = @$arr_org;
+  $itemcnt = ($itemcnt > 0) ? $itemcnt : 1;
   #print("Items per batch: $itemcnt\n");
-
   my @arr2d = ();
   while (my @subarr = splice(@arr_copy, 0, $itemcnt) ) {
     #print(to_json(\@subarr)."\n");
@@ -167,7 +167,8 @@ sub arr_chunk {
 sub run_serpar {
   my ($drun, $items, %opts) = @_;
   my $grpcnt = $opts{'grpcnt'} || 3;
-  if ($grpcnt < 2) { die("run_serpar does not make sense with grpcnt < 2 ! Cancelling run."); }
+  if ($grpcnt < 2) { print(STDERR "Warning: run_serpar with grpcnt < 2 - That coverges to (effective) run_series!"); }
+  print("GRPCNT: $grpcnt\n");
   my $grpsize = scalar(@$items);
   # Common
   #my $cb = $drun->{'cb'};
