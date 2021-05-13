@@ -7,7 +7,7 @@ use DPUT::DataRun;
 use DPUT;
 use File::Path ('make_path');
 use Digest::MD5 qw(md5 md5_hex md5_base64);
-
+use Test::More;
 
 my $waits = [5, 8, 3, 9, 12];
 sub waitfor_me {
@@ -105,3 +105,63 @@ my $singleitem = {'path' => $ENV{'HOME'}};
 }
 
 }
+
+
+
+
+
+# Data Chunking for run_serpar()
+
+my $aoa = [
+  [1],
+  [1, 2],
+  [1, 2, 3],
+  [1, 2, 3, 4],
+  [1, 2, 3, 4, 5],
+];
+
+#$aoa = makedataset(123); # 123
+# print(Dumper($aoa)); exit(1);
+note("run_serpar() chunking\n");
+my $testcnt = 0;
+# Try combos of array and group size
+for my $arr (@$aoa) {
+  # my $grpcnt = 2;
+  for my $grpcnt (1..3) {
+    my $cnt_o = scalar(@$arr);
+    my $chunked = DPUT::DataRun::arr_chunk($arr, $grpcnt);
+    note("Chunked(".scalar(@$arr)." items, grpcnt: $grpcnt)\n");
+    local $Data::Dumper::Indent = 0;
+    print(Dumper($arr)."\n");
+    print(Dumper($chunked)."\n");
+    # Chunked
+    my $cnt_c = aoa_count($chunked); # TODO:  DPUT::DataRun::aoa_count()
+    # if ($cnt_o != $cnt_c) { print("ERROR: Counts not matching org($cnt_o) vs chunked($cnt_c) grpsize: $grpcnt\n"); }
+    # assert !
+    ok($cnt_o == $cnt_c, "Chunked to original number of items ($cnt_o)");
+    $testcnt++;
+  }
+}
+done_testing( $testcnt );
+
+# Could total items 
+sub aoa_count {
+  my ($aoa) = @_;
+  my $tot = 0;
+  for my $arr (@$aoa) {
+    if (ref($arr) ne 'ARRAY') { die("Inner item is not an array !\n"); }
+    $tot += scalar(@$arr);
+  }
+  return $tot;
+}
+
+# Make array datasets in varying lengths
+sub makedataset {
+  my ($numarr) = @_;
+  my $aoa = [];
+  for my $i (1..$numarr) {
+    push(@$aoa, [(1..$i)]);
+  }
+  return $aoa;
+}
+
