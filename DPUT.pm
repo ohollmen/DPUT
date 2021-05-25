@@ -198,7 +198,7 @@ sub dir_list {
   closedir($dir);
   # Possible filtering ...
   @files = grep({!/^\.\.?$/} @files);
-  if ($opts{'abs'}) { map({"$path/$_"} @files); } # Map to abs names
+  if ($opts{'abs'}) { @files = map({"$path/$_"} @files); } # Map to abs names
   return \@files;
 }
 ## Do flexible path prefixing
@@ -401,7 +401,9 @@ sub sheet_to_data {
 # for establishing connection to the remote sever (e.g. HTTP+REST, MySQL, MongoDB, LDAP, ...)
 sub netrc_creds {
   my ($hostname, %opts) = @_;
-  my @locs = ("$ENV{HOME}/.netrc", "$ENV{HOMEDRIVE}$ENV{HOMEPATH}.netrc");
+  my @locs = ();
+  if ($ENV{HOME}) { push(@locs, "$ENV{HOME}/.netrc"); }
+  if ($ENV{HOMEDRIVE} && $ENV{HOMEPATH}) { push(@locs, "$ENV{HOMEDRIVE}$ENV{HOMEPATH}.netrc"); }
   my @locs2 = grep({ -f $_; } @locs);
   if (!@locs2) { die("netrc_creds(): No .netrc found (from @locs)"); }
   # my $lines; my @$lines = DPUT::file_read($locs2[0], 'lines' => 1, rtrim => 1);
