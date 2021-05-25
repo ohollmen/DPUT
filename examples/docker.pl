@@ -17,6 +17,7 @@ my $dcfg = {
   "cmd" => "grep Johnny /etc/passwd",
   "vols" => ["/tmp", "/usr"],
   "asuser" => "ohollmen",
+  "asgroup" => "ohollmen",
   "mergeuser" => "oddball:x:1004:1004:Johnny Oddball,,,:/home/oddball:/bin/bash",
   # NEW !
   #"mergegroup" => "oddball:x:1004:",
