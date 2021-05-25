@@ -83,7 +83,7 @@ sub new {
   if (!$opts{'img'}) { die("No Docker Image\n"); }
   if (!$opts{'cmd'}) { die("No Docker Command to execute\n"); }
   #if (!$opts{'???'}) { die("Does not look like docker task\n"); }
-  my @props = ('img', 'vols', 'cmd', 'mergeuser', 'asuser', 'mergegroup', 'debug', 'env', 'asgroup', 'confdir');
+  my @props = ('img', 'vols', 'cmd', 'mergeuser', 'asuser', 'mergegroup', 'debug', 'env', 'asgroup', 'confdir', 'mergeforce');
   my $self = {'img' => $opts{'img'}, 'vols' => ($opts{'vols'} || []), 'cmd' => $opts{'cmd'},
      'mergeuser' => $opts{'mergeuser'}, 'asuser' => $opts{'asuser'}, 'mergegroup' => $opts{'mergegroup'},
      'debug' => $opts{'debug'}, 'env' => ($opts{'env'} || {}),  'asgroup' => $opts{'asgroup'}, # 'cwd' => $opts{'cwd'},
@@ -434,7 +434,7 @@ sub new {
   my $dconf = eval { DPUT::jsonfile_load($dcfname); };
   if (@$ || !$dconf) { $msg .=  "No base docker config ('$dcfname') loaded (Got '$dconf' / '$@') !\n"; goto FAIL; }
   if (ref($dconf) ne 'HASH') { $msg .= "Docker main config not in a HASH !"; goto FAIL; }
-  print("Loaded CONF\n");
+  #print("Loaded CONF\n");
   #if ($dconf &&  (ref($dconf) eq 'HASH')) { $self = $dconf; }
   $this = bless($dconf, $class);
   $this->{'dcat'} = undef;
@@ -444,7 +444,7 @@ sub new {
   my $dcatarr = eval { DPUT::jsonfile_load($dcatfname); };
   if (ref($dcatarr) ne 'ARRAY') { $msg .= "Docker catalog not in an ARRAY !"; goto SUCCESS; }
   $this->{'dcat'} = $dcatarr;
-  print("Loaded CAT\n");
+  #print("Loaded CAT\n");
   if ($msg) { print("Warning: $msg\n"); }
   SUCCESS:
   return $this;
@@ -462,7 +462,8 @@ sub find {
 }
 
 sub olay {
-  my ($self, $base) = @_;
+  my ($self, $base, %opts) = @_;
+  my $mergers = (ref($opts{'mergers'}) eq 'HASH') ? $opts{'mergers'} : undef;
   # Attrs to overlay
   my @attrs = ();
   for my $at (@attrs) {
