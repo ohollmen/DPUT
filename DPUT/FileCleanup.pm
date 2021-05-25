@@ -234,7 +234,13 @@ if ($0 =~ /FileCleanup.pm/) {
     #`$cmd`;
     system($cmd);
   }
-  my $cfg = {"path" => "/tmp", "tspec" => "5d", 'npatt' => qr/^totally_dummy_path_\d+/, 'type' => 'subdirs', 'debug' => 1};
+  #use JSON; use Data::Dumper; # import ...
+  #my $cfg = {"path" => "/tmp", "tspec" => "5d", 'npatt' => qr/^totally_dummy_path_\d+/, 'type' => 'subdirs', 'debug' => 1};
+  my $cfg = {"path" => "/tmp", "tspec" => "5d", 'npatt' => "^totally_dummy_path_\\d+", 'type' => 'subdirs', 'debug' => 1};
+  #my $cfg_j = '{"path" : "/tmp", "tspec" : "5d", "npatt" : "^totally_dummy_path_\\\d+", "type" : "subdirs", "debug" : 1}';
+  #my $cfg = from_json($cfg_j);
+  #print("My config is (as Perl):".Data::Dumper::Dumper($cfg)."\n");
+  #print("My config is (as JSON):".to_json($cfg, {pretty => 1})."\n");
   my $fc = DPUT::FileCleanup->new($cfg);
   DEBUG: print(Dumper($fc));
   #exit(1);
