@@ -143,6 +143,8 @@ sub run {
     $opts->{'op'} = $op;
     # TODO: eval {}
     my $ret = $opcb->($opts); # Dispatch !
+    # Note: How do we return success to framework. For now store in instance.
+    $clr->{'ret'} = $ret;
     # Invert return value here ?
     if ($clr->{'exit'}) { exit($ret); }
   } # Add subcommand as op (should not overlap with other options)
@@ -193,5 +195,5 @@ sub clrunner {
   GetOptions($opts, @$argmeta);
   $opts->{'op'} = $op;
   # TODO: eval {}
-  $opcb->($opts); # Dispatch !
+  return $opcb->($opts); # Dispatch !
 }
