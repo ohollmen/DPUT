@@ -472,6 +472,7 @@ sub olay {
 }
 
 package DPUT::DockerRunner;
+
 # ## hostcontarr = containers_select($hosts, $cb, %opts)
 # 
 # Find select containers by criteria on set of docker hosts.
@@ -518,7 +519,7 @@ sub containers_select {
 # 
 # Kill a set of containers on various docker hosts.
 # Containers must be passed in idonly format (See containers_select).
-# For options in %opts (debug, apiver, port) - See containers_select).
+# For options in %opts (debug, apiver, port) - See containers_select.
 # Return number of cumulated errors in killing containers.
 sub containers_delete {
   my ($arr, %opts) = @_;
@@ -532,8 +533,10 @@ sub containers_delete {
     my $h = $ch->{hname};
     my $conts = $ch->{'conts'};
     if (!$conts || !@$conts) { next; } # No containers (or ids)
+    my $cb = $opts{'cb'}; # To be enabled, see below
     for my $cid (@$conts) {
-      # Forcing is pretty much necessity as even running processes seem to be blocking deletion.
+      # if ($cb) { $errs += $cb->($h, $p, $burl, $cid); next; }
+      # Forcing delete is pretty much necessity as even running processes seem to be blocking deletion.
       my $url = 'http://'.$h.":$p/".$burl.$cid."?force=1"; # force=1
       if ($opts{'debug'}) { print("DELETE $url\n"); }
       my $req = HTTP::Request->new(DELETE, $url);
