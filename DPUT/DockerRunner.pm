@@ -470,3 +470,79 @@ sub olay {
     if ($self->{$at} && !$base->{$at}) { $base->{$at} = $self->{$at}; }
   }
 }
+
+package DPUT::DockerRunner;
+# ## hostcontarr = containers_select($hosts, $cb, %opts)
+# 
+# Find select containers by criteria on set of docker hosts.
+# The filter callback $cb decides if container is to be selected into set and
+# receives container (as coming from docker /containers/ API entrypoint)
+# And must return true to keep item on list.
+# If no callback ($cb) is passed, an internal keep-all callback will include all items.
+# Options in %opts:
+# - debug - Debug mode, verbose output, etc.
+# - apiver - API version (prefixed with letter v, like used in docker URL:s)
+# - port - Docker service port.
+# - idonly - The "conts" member of host data will be ID (SHA256 hash) only, not a full object
+# Returns array of objects with one item containing containers for single host.
+# objects containing members:
+# - hname - Hostname (as passed in original hosts array)
+# - conts - array with container objects or id:s, (see idonly parameter for structure/format of items).
+sub containers_select {
+  my ($hosts, $cb, %opts) = @_;
+  my $v = $opts{'apiver'} || 'v1.24';
+  my $p = $opts{'port'}   || '4243';
+  $cb = $cb || sub { return 1; };
+  eval("use LWP::UserAgent;use JSON;");
+  my $ua = LWP::UserAgent->new(); # cookie_jar => {}
+  my $burl = "$v/containers/json";
+  my @arr = ();
+  for my $h (@$hosts) {
+    my $url = 'http://'.$h.":$p/".$burl;
+    if ($opts{'debug'}) { print("GET $url\n"); }
+    my $req = HTTP::Request->new(GET, $url);
+    my $res = $ua->request($req);
+    if (!$res->is_success()) { print(STDERR "Could not receive container info from: $h:".$res->code()."\n"); next; }
+    my $cont = $res->decoded_content();
+    my $j = eval { from_json($cont); };
+    $opts{'debug'} && print(Dumper($j));
+    if (ref($j) ne 'ARRAY') { next; }
+    # Include / Exclude
+    my @out = grep({ $cb->($_); } @$j);
+    if ($opts{'idonly'}) { @out = map( { substr($_->{'Id'}, 0, 12); } @out); }
+    push(@arr, { hname => $h, conts => \@out} );
+  }
+  return \@arr;
+}
+# ## $errs = containers_delete($arr, %opts)
+# 
+# Kill a set of containers on various docker hosts.
+# Containers must be passed in idonly format (See containers_select).
+# For options in %opts (debug, apiver, port) - See containers_select).
+# Return number of cumulated errors in killing containers.
+sub containers_delete {
+  my ($arr, %opts) = @_;
+  my $v = $opts{'apiver'} || 'v1.24';
+  my $p = $opts{'port'}   || '4243';
+  eval("use LWP::UserAgent;use JSON;");
+  my $ua = LWP::UserAgent->new(); # cookie_jar => {}
+  my $burl = "$v/containers/";
+  my $errs = 0;
+  for my $ch (@$arr) {
+    my $h = $ch->{hname};
+    my $conts = $ch->{'conts'};
+    if (!$conts || !@$conts) { next; } # No containers (or ids)
+    for my $cid (@$conts) {
+      # Forcing is pretty much necessity as even running processes seem to be blocking deletion.
+      my $url = 'http://'.$h.":$p/".$burl.$cid."?force=1"; # force=1
+      if ($opts{'debug'}) { print("DELETE $url\n"); }
+      my $req = HTTP::Request->new(DELETE, $url);
+      my $res = $ua->request($req);
+      if (!$res->is_success()) { print(STDERR "Could not delete container: $cid from: $h:".$res->code()."(".$res->status_line().")\n"); next; }
+      # Response should be 204 / No Content
+      if ($res->code() == 204 ) { $opts{'debug'} && print("Got 204\n"); next; }
+      $errs += 1;
+    }
+  }
+  return $errs;
+}
