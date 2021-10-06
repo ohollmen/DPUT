@@ -271,7 +271,7 @@ sub isotime {
 ## # Tabular files processing (CSV, XLSX)
 ## 
 ## Create easily/natively processable AoH Objects out of popular data formats.
-## DPUT couples you to neither of the modules Test::CSV or Spreadsheet::XLSX but they must be loaded by app
+## DPUT couples you to neither of the modules Text::CSV or Spreadsheet::XLSX but they must be loaded by app
 ## (see examples below).
 ## Only their *methods* will be called in here (with late binding).
 ## For the column headers for these tabular files (first valid line of the table) there are typically 3 scenarios:
@@ -291,7 +291,7 @@ sub isotime {
 # 
 # Example CSV extraction scenario:
 # 
-#     use Text::CSV; 
+#     use Text::CSV;
 #     my $csv = Text::CSV->new({binary => 1});
 #     if (!$csv) { die("No Text::CSV processor instance"); }
 #     my $ok = open(my $fh, "<", "animals.csv");
@@ -368,7 +368,7 @@ sub sheet_to_data {
     @$cols = map({ $sheet->{Cells}->[$startrow]->[$_]->{'Val'}; } ($minc .. $maxc));
     $startrow++;
   }
-  foreach my $row ($startrow .. $sheet->{MaxRow}) {    
+  foreach my $row ($startrow .. $sheet->{MaxRow}) {
     $sheet->{MaxCol} ||= $sheet->{MinCol};
     my %e = ();
     foreach my $col ($sheet->{MinCol} ..  $sheet->{MaxCol}) {
@@ -468,7 +468,7 @@ sub filetree_filter_by_stat {
 ## Options:
 ## - env - Inclusion of env - copy => make a copy of environment, none => No 'env' variable map at all
 ## - nis - Include nis domain info (Must have Net::NIS)
-## The runtime of interpreter has already info most of these things, 
+## The runtime of interpreter has already info most of these things,
 ## TODO:Provide also a blessed version with methods.
 ## TODO: Move to DPUT::ProcCtx
 ## TODO: Create is_win() wrapper for detecting windows run
@@ -506,10 +506,10 @@ sub procctx {
 ## Example:
 ## 
 ##     my $re = qr/v?(\d+)\.(\d+)\.(\d+).*/;
-##     my $verstr = "v2.6.7-patch87";
+##     my $verstr = "v2.6.7-build87";
 ##     my $v = DPUT::named_parse($re, $verstr, ['major','minor','patch']);
 ##     if (!$v) { die("Could not extract version"); }
-##     print(Dumper($v)); # 
+##     print(Dumper($v)); # {major => 2, minor => 6,  patch => 7}
 ## 
 ## TODO: Config option for starting at $0
 ## TODO: Allow multiline ?
