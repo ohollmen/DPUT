@@ -12,21 +12,36 @@ $Data::Dumper::Terse = 1;
 use JSON;
 
 my $li = linkinfo->new("/usr/bin/curl");
+print("Got: $li\n");
 my $libs = $li->{'LIBS'};
-# Resolve to basename (to make *.a)
-# Try to find respective *.a files (possibly many)
-# 
-for my $l (@$libs) {
-  #print("DYN: $l->{'libres'}\n");
-  $l->{'bn'} = File::Basename::basename($l->{'libres'});
-  $l->{'bn'} =~ s/\.so\.?[\d\.]*$//;
-  $l->{static} = findlib("$l->{'bn'}.a");
-  $l->{libpkg} = findownerpkg($l);
-  if (!$l->{'static'} || !scalar(@{ $l->{'static'} })) {
-    $l->{addlpkgs} = findaddlpkgs($l->{libpkg});
+# addlinfo($li);
+# print(Dumper($libs));
+print("JSON:".to_json($li, { pretty => 1, allow_blessed => 1, convert_blessed => 1}));
+exit(0);
+# Gather additional info on linked libraries.
+# - If static library is in the system
+# - What OS package library comes from
+# - 
+sub addlinfo {
+  my ($li) = @_;
+  my $libs = $li->{'LIBS'};
+  # Resolve to basename (to make *.a)
+  # Try to find respective *.a files (possibly many)
+  # 
+  for my $l (@$libs) {
+    #print("DYN: $l->{'libres'}\n");
+    $l->{'bn'} = File::Basename::basename($l->{'libres'});
+    $l->{'bn'} =~ s/\.so\.?[\d\.]*$//;
+    $l->{static} = findlib("$l->{'bn'}.a");
+    # Pkg manager related
+    $l->{libpkg} = findownerpkg($l);
+    if (!$l->{'static'} || !scalar(@{ $l->{'static'} })) {
+      $l->{addlpkgs} = findaddlpkgs($l->{libpkg});
+    }
   }
+  return;
 }
-print(Dumper($libs));
+
 
 # print(to_json($li, {pretty => 1}));
 sub findlib {
