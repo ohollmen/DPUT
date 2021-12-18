@@ -519,7 +519,8 @@ sub containers_select {
 # 
 # Kill a set of containers on various docker hosts.
 # Containers must be passed in idonly format (See containers_select).
-# For options in %opts (debug, apiver, port) - See containers_select.
+# For (most) options in %opts (debug, apiver, port) - See containers_select. Additionally:
+# - force - force deletion of container.
 # Return number of cumulated errors in killing containers.
 sub containers_delete {
   my ($arr, %opts) = @_;
@@ -529,15 +530,17 @@ sub containers_delete {
   my $ua = LWP::UserAgent->new(); # cookie_jar => {}
   my $burl = "$v/containers/";
   my $errs = 0;
+  my $force = $opts{'force'} ? "1" : "0";
   for my $ch (@$arr) {
     my $h = $ch->{hname};
     my $conts = $ch->{'conts'};
     if (!$conts || !@$conts) { next; } # No containers (or ids)
     my $cb = $opts{'cb'}; # To be enabled, see below
     for my $cid (@$conts) {
+      if ($opts{dryrun}) { print(STDERR "Dry-run - not deleting ($h:$cid)\n"); next; }
       # if ($cb) { $errs += $cb->($h, $p, $burl, $cid); next; }
       # Forcing delete is pretty much necessity as even running processes seem to be blocking deletion.
-      my $url = 'http://'.$h.":$p/".$burl.$cid."?force=1"; # force=1
+      my $url = 'http://'.$h.":$p/".$burl.$cid."?force=$force"; # force=1
       if ($opts{'debug'}) { print("DELETE $url\n"); }
       my $req = HTTP::Request->new(DELETE, $url);
       my $res = $ua->request($req);
