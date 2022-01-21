@@ -2,6 +2,7 @@ package DPUT::MDRipper;
 use DPUT;
 use strict;
 use warnings;
+use File::Basename;
 
 our $VERSION = '0.0.1';
 
@@ -52,4 +53,49 @@ sub rip {
   }
   @mdlines = map({ substr($_, 2); } @mdlines);
   return(join('', @mdlines)); # "\n" should be there
+}
+
+# ## DPUT::MDRipper::docs_create($files, %opts);
+# 
+# Create Markdown output on set of code files.
+# Code files should contain segments/snippets of MD documentation.
+# Creates an an Array of Objects with:
+# - fname - Name for Original file (codefile, e.g. perl, python, shell) subject to extraction
+# - mdcont - Markdown content (to be e.g. saved to file at end)
+# - htmlcont - HTML content (in case MD-to-HTML conversion *was* done)
+# - mdfn - Tentative / Suggested MD filename
+# - htmlfn - Tentative / Suggested HTML filename
+sub docs_create {
+  my ($files, %opts) = @_;
+  if (!$files || (ref($files) ne 'ARRAY' )) { die("No code files to extract MD from\n"); }
+  #my $fullmd = "";
+  #my $createhtml = 0;
+  my @docs = ();
+  for my $fname (@$files) {
+    # my $fname = "../$_";
+    if ($opts{basepath}) { $fname = "$opts{basepath}/$fname"; }
+    if (!-f $fname) { die("No code file: '$fname' !"); }
+    # Processes one whole file at the time
+    my $md = DPUT::MDRipper->new()->rip($fname);
+    my $e = {'fname' => $fname, 'mdcont' => $md};
+    
+    my $bn = basename($fname);
+    if ($bn =~ m/\.\w+$/) { $bn =~ s/\.\w+$//; $e->{'mdfn'} = "$bn.md"; }
+    else { print(STDERR "No suffix for code file !"); $e->{'mdfn'} = "$fname.md"; }
+    #$fullmd .= $md;
+    #print($md);
+    if ($opts{'html'}) { # $createhtml
+      eval("use Text::Markdown;");
+      # my $html =
+      $e->{'htmlcont'} = Text::Markdown::markdown($md);
+      #print($html);
+      # my $outfname = "./".basename($fname).".html";
+      $e->{'htmlfn'} = "$bn.html";
+      print(STDERR "Suggested HTML name: '$e->{'htmlfn'}'\n");
+      #file_write($outfname, $html);
+    }
+    push(@docs, $e);
+  }
+  #return $fullmd;
+  return \@docs;
 }
