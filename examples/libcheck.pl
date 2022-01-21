@@ -11,10 +11,12 @@ $Data::Dumper::Indent = 1;
 $Data::Dumper::Terse = 1;
 use JSON;
 
-my $li = linkinfo->new("/usr/bin/curl");
+my $elfname = $ARGV[0] || "/usr/bin/curl";
+
+my $li = linkinfo->new($elfname);
 print("Got: $li\n");
 my $libs = $li->{'LIBS'};
-# addlinfo($li);
+addlinfo($li);
 # print(Dumper($libs));
 print("JSON:".to_json($li, { pretty => 1, allow_blessed => 1, convert_blessed => 1}));
 exit(0);
@@ -38,6 +40,10 @@ sub addlinfo {
     if (!$l->{'static'} || !scalar(@{ $l->{'static'} })) {
       $l->{addlpkgs} = findaddlpkgs($l->{libpkg});
     }
+    # Find owner pkg of static
+    else {
+      $l->{libpkg_static} = findownerpkg($l->{'static'}->[0]);
+    }
   }
   return;
 }
@@ -55,11 +61,13 @@ sub findlib {
 }
 sub findownerpkg {
   my ($l) = @_;
-  my $cmd = "dpkg-query -S $l->{'libres'}";
+  my $abslib = (ref($l) ) ? $l->{'libres'} : $l; # eq "HASH" - NOTE is blessed !
+  #print("Find owner of: $abslib\n");
+  my $cmd = "dpkg-query -S $abslib";
   my @pkgs = `$cmd`;
   if (!@pkgs) { return undef; }
   chomp(@pkgs);
-  if (@pkgs > 1) { die("Error: Multiple owning pkgs for $l->{'libres'}!\n"); }
+  if (@pkgs > 1) { die("Error: Multiple owning pkgs for $abslib!\n"); }
   #print("PKGLINE: $pkgs[0]\n");
   my ($pkg) = split(/:\s+/, $pkgs[0], 2);
      ($pkg) = split(/:/, $pkg, 2); # Strip arch-indicator
