@@ -416,8 +416,9 @@ package DPUT::DockerConf;
 ## Allow loading docker main config (docker environment global settings) and catalog of images / image configs easily.
 ## Utilize 
 
-# ## load JSON Config(s) form a path.
+# ## $dockercfg = DPUT::DockerConf->new($path, %opts);
 # 
+# Load JSON Config(s) form a path.
 # Look for current docker environment files:
 # - Main docker config by name docker.conf.json
 # - Docker catalog by name: dockercat.conf.json
@@ -473,20 +474,23 @@ sub olay {
 
 package DPUT::DockerRunner;
 
-# ## hostcontarr = containers_select($hosts, $cb, %opts)
+# ## $hostcontarr = containers_select($hosts, $cb, %opts)
 # 
 # Find select containers by criteria on set of docker hosts.
 # The filter callback $cb decides if container is to be selected into set and
 # receives container (as coming from docker /containers/ API entrypoint)
 # And must return true to keep item on list.
 # If no callback ($cb) is passed, an internal keep-all callback will include all items.
+# 
 # Options in %opts:
 # - debug - Debug mode, verbose output, etc.
 # - apiver - API version (prefixed with letter v, like used in docker URL:s)
 # - port - Docker service port.
 # - idonly - The "conts" member of host data will be ID (SHA256 hash) only, not a full object
+# 
 # Returns array of objects with one item containing containers for single host.
 # objects containing members:
+# 
 # - hname - Hostname (as passed in original hosts array)
 # - conts - array with container objects or id:s, (see idonly parameter for structure/format of items).
 sub containers_select {
